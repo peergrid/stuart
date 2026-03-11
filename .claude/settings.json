@@ -22,5 +22,61 @@
     "skill-creator@claude-plugins-official": true,
     "gopls-lsp@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "doreen/hooks/session-context.sh",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "doreen/hooks/compaction-logger.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "doreen/hooks/compaction-recovery.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "doreen/hooks/session-context.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "doreen/hooks/tool-logger.sh",
+            "timeout": 3000
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "doreen/hooks/agent-logger.sh",
+            "timeout": 3000
+          }
+        ]
+      }
+    ]
   }
 }
