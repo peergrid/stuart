@@ -64,7 +64,9 @@ Testing, monitoring, and behavioral control framework. Provides hooks, tests, gr
 
 For detailed information when working *on* doreen itself, see `doreen/CLAUDE.md`.
 
-### anamnesis/
+### anamnesis/ (ana)
 Claude self-knowledge base and modification toolkit. Deep reference material on Claude's architecture, tools, behaviors, and failure modes. Provides transcript analysis tools, debug log parsers, directive authoring aids, and the knowledge needed to act on doreen's findings.
+
+"Ana" always refers to this project.
 
 For detailed information when working *on* anamnesis itself, see `anamnesis/CLAUDE.md`.
