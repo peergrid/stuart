@@ -63,3 +63,8 @@ Convergence happens through iteration, not through a single pass. Plans are disp
 Testing, monitoring, and behavioral control framework. Provides hooks, tests, grading, and tooling that run in the background during normal operation across all projects.
 
 For detailed information when working *on* doreen itself, see `doreen/CLAUDE.md`.
+
+### anamnesis/
+Claude self-knowledge base and modification toolkit. Deep reference material on Claude's architecture, tools, behaviors, and failure modes. Provides transcript analysis tools, debug log parsers, directive authoring aids, and the knowledge needed to act on doreen's findings.
+
+For detailed information when working *on* anamnesis itself, see `anamnesis/CLAUDE.md`.
