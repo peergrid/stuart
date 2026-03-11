@@ -15,7 +15,7 @@ func NewJSONLWriter() *JSONLWriter {
 }
 
 // WriteLine writes a single value as one JSON line.
-func (jw *JSONLWriter) WriteLine(v interface{}) error {
+func (jw *JSONLWriter) WriteLine(v any) error {
 	data, err := json.Marshal(v)
 	if err != nil {
 		return err

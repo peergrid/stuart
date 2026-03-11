@@ -110,14 +110,8 @@ func (c *Cursor) seekNth(target AnchorTarget, n int) bool {
 
 // Window returns records in [pos-before, pos+after], clamped to bounds.
 func (c *Cursor) Window(before, after int) []*Record {
-	start := c.pos - before
-	if start < 0 {
-		start = 0
-	}
-	end := c.pos + after + 1
-	if end > len(c.records) {
-		end = len(c.records)
-	}
+	start := max(c.pos-before, 0)
+	end := min(c.pos+after+1, len(c.records))
 	return c.records[start:end]
 }
 

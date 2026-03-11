@@ -21,12 +21,12 @@ func NewJSONWriter() *JSONWriter {
 }
 
 // WriteValue writes a single JSON value with pretty printing.
-func (jw *JSONWriter) WriteValue(v interface{}) error {
+func (jw *JSONWriter) WriteValue(v any) error {
 	return jw.encoder.Encode(v)
 }
 
 // WriteArray writes an array of values as a JSON array.
-func (jw *JSONWriter) WriteArray(values []interface{}) error {
+func (jw *JSONWriter) WriteArray(values []any) error {
 	data, err := json.MarshalIndent(values, "", "  ")
 	if err != nil {
 		return err
