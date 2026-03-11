@@ -41,6 +41,52 @@
       "Bash(git push * -f *)"
     ]
   },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "doreen/hooks/shell-tool-misuse.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "doreen/hooks/polling-patterns.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "doreen/hooks/heredoc-script-abuse.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "doreen/hooks/runaway-loops.sh",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Grep|Glob|Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "doreen/hooks/undelegated-exploration.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
