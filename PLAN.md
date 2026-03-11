@@ -1,10 +1,14 @@
-# Stuart: Claude Behavior Testing & Control Framework
+# Stuart — a.k.a. Claude
 
-> Named after [Stuart Larkin](https://madtv.fandom.com/wiki/Stuart_Larkin) — because even the most capable agent needs someone saying "look what I can do" and then checking whether it actually did it right.
+> *"Look what I can do!"* — [Stuart Larkin](https://madtv.fandom.com/wiki/Stuart_Larkin), MadTV
+>
+> Stuart is Claude. He's the overenthusiastic, unsupervised child who — without anyone asking — proudly announces "Look what I can do!" and then produces an awkward, unimpressive, spasm-like flourish. He means well. He's trying so hard. He is exhausting.
 
-## Vision
+# Doreen — the Framework
 
-A comprehensive testing, monitoring, and control framework for Claude Code. Stuart validates that Claude behaves correctly across tasks — from atomic directive compliance to full-scale feature development — and provides hooks, alerts, and regression tracking to keep it that way over time.
+> Doreen is Stuart's mom. She's exhausted. She's been doing this for years. She loves her son but she is *right on the verge* of giving up. She nags. She scolds. She corrects. She catches him right before he sticks a fork in an outlet. She has seen it all and she is so, so tired.
+>
+> **Doreen is what we're building.** A testing, monitoring, and control framework that watches Claude do his thing, grades the performance, catches the bad habits, and — with the weary persistence of a woman who has already said "Stuart, don't do that" ten thousand times — tries to make him behave.
 
 ## Architecture
 
@@ -36,7 +40,9 @@ Test large, multi-step tasks using the full "brain" (all available context, tool
 - Multi-file refactoring with dependency analysis.
 - Debugging a complex issue across multiple subsystems.
 
-### Grading System
+### Grading System — The Report Card
+
+How Doreen evaluates whether Stuart actually did a good job or just made a mess and called it art.
 
 #### Transcript Analysis (Automated)
 - **Tool use audit**: Correct tools selected, correct order, no redundant calls.
@@ -73,7 +79,9 @@ Test large, multi-step tasks using the full "brain" (all available context, tool
 - Performance trend tracking (cost, quality, speed).
 - Detection of regressions in previously-passing behaviors.
 
-### Hooks — Real-Time Behavioral Controls
+### Hooks — Doreen's Voice
+
+Real-time behavioral controls. The nagging. The "Stuart, NO." The sigh followed by a correction. These fire during execution and either block, warn, or log.
 
 #### Problematic Tool Calls
 - Subshell spawning when avoidable.
@@ -88,13 +96,15 @@ Test large, multi-step tasks using the full "brain" (all available context, tool
 - Poor compaction recovery (losing context, repeating work).
 - Brute-force retries of failing operations.
 
-### Workflow Tools
+### Workflow Tools — Doreen's Toolkit
 
-#### Quick Capture
-- Record a problematic tool call or pattern on the spot, with recommended alternative → immediately baked into a hook rule.
-- Record a regression or bad behavior as a new unit/integration/functional test case.
+#### Quick Capture — "Write That Down"
+When Stuart does something stupid mid-session, Doreen needs to be able to immediately:
+- Record the problematic tool call or pattern with the recommended alternative → baked into a hook rule on the spot.
+- Record the regression or bad behavior as a new test case so he never gets away with it again.
 
-#### Selective Test Execution
+#### Selective Test Execution — "Pick Your Battles"
+Doreen can't yell about everything. She has to prioritize.
 - Filter tests by estimated time/token cost.
 - Filter by historical regression rate (positive findings over time, recency-weighted).
 - Run "smoke" suite (fast, high-value tests) vs. full suite.
