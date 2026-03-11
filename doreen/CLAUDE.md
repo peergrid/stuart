@@ -18,4 +18,4 @@ See `doreen/docs/CONVENTIONS.md` for the spec format and rules. Key point: docs 
 
 ## Architecture
 
-See `PLAN.md` at the repo root for the full architectural overview, including test tiers, grading system, hooks, and workflow tools.
+See `doreen/docs/architecture.md` for the full architectural overview, including test tiers, grading system, hooks, and workflow tools.
