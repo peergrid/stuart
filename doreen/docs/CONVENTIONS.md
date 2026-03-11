@@ -1,56 +1,35 @@
 # Doreen Docs — Conventions
 
-This directory is the **single source of truth** for Doreen. It must be kept current as decisions are made, changes are executed, and features are implemented.
+This directory is the **single source of truth** for what Doreen *should* be. The code is the single source of truth for what Doreen *is*. There is no third source.
 
 ## The Contract
 
 A fresh agent with zero context should be able to:
 1. Read everything in `doreen/docs/`
-2. Compare the specs against the actual codebase
-3. Fix any bugs (reality doesn't match an implemented spec)
-4. Implement any planned specs (spec exists but isn't built yet)
+2. Read the actual codebase
+3. Identify the gaps — what the docs describe that the code doesn't do, and what the code does that contradicts the docs
+4. Close the gaps — implement what's missing, fix what's wrong
 
-If the docs can't support that workflow, they're broken.
+No status fields. No checklists. No implementation tracking in the docs. The docs describe the desired state. The code is the actual state. The agent is the reconciliation loop.
+
+## Why No Status Tracking
+
+Status tracking in docs is a third source of truth that can drift from both the docs and the code. If a spec says `status: implemented` but the code is broken, you now have *two* things that are wrong. If a checkbox says `[x]` but the feature regressed, the checkbox is a liar.
+
+The code never lies about what's implemented. The docs should never lie about what's desired. That's enough.
 
 ## Spec Format
 
-Every spec file uses YAML frontmatter:
+Specs describe *what should exist* — behavior, structure, interfaces, constraints. They are written in plain prose and are specific enough that an agent can read one, look at the codebase, and know unambiguously whether the code matches.
 
-```markdown
----
-status: planned | in-progress | implemented
-owner: who decided/wrote this
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
----
-```
-
-**Status meanings:**
-- `planned` — Decided, specced, not yet built. A fresh agent should implement this.
-- `in-progress` — Partially built. The checklist below shows what's done and what remains.
-- `implemented` — Fully built and matching the spec. A fresh agent should verify this still holds and fix any drift.
-
-## Requirements Within Specs
-
-Each spec contains requirements as a checklist. This is the granular status tracker — not a separate system, not a task board, just the spec itself.
-
-```markdown
-## Requirements
-
-- [x] Thing that is built and working
-- [ ] Thing that is specced but not yet built
-- [x] Another built thing
-- [ ] Another planned thing
-```
-
-A fresh agent scans for `- [ ]` to find unfinished work and `- [x]` to find things to verify.
+A good spec reads like a contract: "The test runner MUST do X. When Y happens, it MUST produce Z." An agent can verify each statement against reality.
 
 ## Rules
 
 1. **Specs are written when decisions are made**, not after implementation.
-2. **Checkboxes are checked when code is committed**, not when code is planned.
-3. **If reality contradicts a spec**, either fix the code or update the spec — never leave them out of sync.
-4. **Never delete a spec**. If something is removed, mark it `status: deprecated` with a note explaining why.
+2. **Specs describe desired state**, not implementation status. No `status:` fields, no `[x]`/`[ ]` checklists.
+3. **If a decision changes**, update the spec. The spec always reflects the *current* desired state.
+4. **Never delete a spec**. If something is removed from the desired state, replace the spec content with a short note explaining why it was removed and when.
 5. **Keep specs atomic**. One feature/component per file. Cross-reference by filename if needed.
 
 ## File Naming
