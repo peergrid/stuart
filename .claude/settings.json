@@ -1,11 +1,44 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh auth:*)",
-      "Bash(git init:*)",
-      "Bash(git commit:*)",
-      "Bash(gh repo:*)",
-      "Bash(git add:*)"
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(go *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(chmod *)",
+      "Bash(cat *)",
+      "Bash(wc *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(jq *)",
+      "Bash(rm *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(diff *)",
+      "Bash(sort *)",
+      "Bash(touch *)",
+      "Bash(find *)",
+      "Bash(which *)",
+      "Bash(stat *)",
+      "Bash(realpath *)",
+      "Bash(du *)",
+      "Bash(make *)",
+      "Bash(echo *)",
+      "Bash(bash *)",
+      "Bash(sh *)",
+      "Edit",
+      "Write",
+      "WebSearch",
+      "WebFetch",
+      "mcp__plugin_context7_context7__*"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(git push --force*)",
+      "Bash(git push * --force*)",
+      "Bash(git push -f *)",
+      "Bash(git push * -f *)"
     ]
   },
   "enabledPlugins": {
