@@ -12,10 +12,6 @@
 
 Doreen provides the hooks, tests, grading, and monitoring that run across all projects. When working on a videogame or any other project, Doreen is the background infrastructure keeping Claude in line. This file is only relevant when working *on* Doreen herself.
 
-## Docs Convention
-
-See `doreen/docs/CONVENTIONS.md` for the spec format and rules. Key point: docs describe desired state, code is actual state, no status tracking in docs.
-
 ## Architecture
 
 See `doreen/docs/architecture.md` for the full architectural overview, including test tiers, grading system, hooks, and workflow tools.
