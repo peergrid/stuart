@@ -1,47 +1,50 @@
 #!/bin/bash
-# PostToolUse — Warn root agent when it makes too many exploratory tool calls
-# between user messages. Subagents are exempt — they exist TO explore.
-# Counter resets on each user message (via exploration-reset.sh on UserPromptSubmit).
+# PreToolUse — Warn root agent when it takes 3+ consecutive turns without
+# going idle to receive operator input. Each "turn" is one assistant response
+# cycle. Multiple tool calls in one turn (batching) is fine. The problem is
+# multiple turns in a row, which blocks queued operator messages.
+# Subagents are exempt. Warned flag resets on UserPromptSubmit.
 set -euo pipefail
 
 source "$(dirname "$0")/lib.sh"
 install_error_trap "undelegated-exploration.sh"
 
-# Subagents can explore freely — this hook is only for the root agent
+# Subagents run autonomously — no turn limit
 is_root_agent || exit 0
 
 INPUT=$(cat)
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // "unknown"' 2>/dev/null)
-
-# Only track exploratory tools: Read, Grep, Glob
-case "$TOOL_NAME" in
-    Read|Grep|Glob) ;;
-    *) exit 0 ;;
-esac
-
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"' 2>/dev/null)
+
 STATE_DIR=$(state_dir)
-EXPLORE_FILE="$STATE_DIR/explore-count-${SESSION_ID}"
+WARNED_FILE="$STATE_DIR/turn-warned-${SESSION_ID}"
+
+# Already warned this run — don't nag
+[ -f "$WARNED_FILE" ] && exit 0
+
+TRANSCRIPT=$(echo "$INPUT" | jq -r '.transcript_path // ""' 2>/dev/null)
+[ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] || exit 0
 
 THRESHOLD=3
 
-# Increment counter
-COUNT=0
-if [ -f "$EXPLORE_FILE" ]; then
-    COUNT=$(cat "$EXPLORE_FILE" 2>/dev/null || echo 0)
-    if ! echo "$COUNT" | grep -qE '^[0-9]+$'; then
-        COUNT=0
-    fi
-fi
-COUNT=$((COUNT + 1))
-echo "$COUNT" > "$EXPLORE_FILE" 2>/dev/null
+# Count assistant turns since last human user message in transcript.
+# Human messages have content blocks with type "text".
+# Tool-result messages have content blocks with type "tool_result" only.
+TURNS=$(tail -200 "$TRANSCRIPT" | jq -s '
+  reverse |
+  (to_entries
+   | map(select(
+       .value.type == "user"
+       and (.value.message.content // [] | any(.type == "text"))
+     ))
+   | .[0].key // length
+  ) as $human_idx |
+  [.[:$human_idx] | .[] | select(.type == "assistant")] | length
+' 2>/dev/null || echo 0)
 
-# Warn when threshold exceeded
-if [ "$COUNT" -gt "$THRESHOLD" ]; then
-    log_event "undelegated-exploration" "warn" "count=$COUNT tool=$TOOL_NAME session=$SESSION_ID"
-    # Reset so next warning fires after another THRESHOLD calls
-    echo "0" > "$EXPLORE_FILE" 2>/dev/null
-    emit_warning "You have made $COUNT exploratory tool calls (Read/Grep/Glob) in this turn without delegating. Launch an Explore or general-purpose agent instead of consuming the main context." "PostToolUse"
+if [ "$TURNS" -ge "$THRESHOLD" ]; then
+    touch "$WARNED_FILE" 2>/dev/null
+    log_event "undelegated-exploration" "warn" "turns=$TURNS session=$SESSION_ID"
+    emit_warning "You have taken $TURNS consecutive turns without going idle. Delegate remaining work to a background agent so you remain available for operator input." "PreToolUse"
 fi
 
 exit 0
