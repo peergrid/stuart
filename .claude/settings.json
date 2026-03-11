@@ -76,12 +76,24 @@
         ]
       },
       {
-        "matcher": "Read|Grep|Glob|Agent",
+        "matcher": "Read|Grep|Glob",
         "hooks": [
           {
             "type": "command",
             "command": "doreen/hooks/undelegated-exploration.sh",
             "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "doreen/hooks/exploration-reset.sh",
+            "timeout": 3000
           }
         ]
       }
