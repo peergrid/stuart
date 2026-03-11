@@ -86,7 +86,7 @@ Real-time behavioral controls. The nagging. The "Stuart, NO." The sigh followed 
 #### Problematic Tool Calls
 - Subshell spawning when avoidable.
 - Unnecessary approval triggers.
-- Manual shell scripting instead of using project scripts or dedicated tools.
+- Temporary shell scripts, complex bash one-liners, or HEREDOC abuse instead of using project scripts or dedicated tools.
 - `cat`, `grep`, `find`, `sed`, `awk`, `echo` instead of Read/Grep/Glob/Edit/Write.
 
 #### Problematic Patterns
@@ -95,6 +95,7 @@ Real-time behavioral controls. The nagging. The "Stuart, NO." The sigh followed 
 - Actively checking subagent progress instead of awaiting completion notifications.
 - Poor compaction recovery (losing context, repeating work).
 - Brute-force retries of failing operations.
+- Main agent performing work or doing exploration instead of delegating to agents or teams.
 
 ### Workflow Tools — Doreen's Toolkit
 
@@ -109,28 +110,39 @@ Doreen can't yell about everything. She has to prioritize.
 - Filter by historical regression rate (positive findings over time, recency-weighted).
 - Run "smoke" suite (fast, high-value tests) vs. full suite.
 
-## Project Structure (Planned)
+## Repo Structure
+
+`~/stuart` is the launch point. It's where Claude Code starts, so its `.claude/` and `CLAUDE.md` govern Stuart's behavior across *all* work. Projects live as subdirectories — each may be its own git repo, but they sit physically under Stuart and inherit his top-level config.
 
 ```
-stuart/
-├── PLAN.md                     # This document
-├── CLAUDE.md                   # Claude directives for this project
-├── tests/
-│   ├── unit/                   # Directive compliance tests
-│   ├── integration/            # Domain task tests
-│   ├── functional/             # End-to-end workflow tests
-│   ├── fixtures/               # Test scenarios (repos, files, configs)
-│   └── grading/                # Grading criteria and rubrics
-├── hooks/                      # Hook definitions and rules
-├── monitoring/                 # Transcript analysis and metrics
-├── results/                    # Test outputs and historical data
-│   ├── transcripts/
-│   ├── metrics/
-│   └── regressions/
-└── tools/                      # CLI tools for test management
-    ├── capture/                # Quick-capture tooling
-    └── runner/                 # Test runner and filtering
+~/stuart/                           # Home base. Stuart lives here. This is the git repo.
+├── PLAN.md                         # This document
+├── CLAUDE.md                       # Stuart's directives — what he must/must not do
+├── .claude/                        # Claude Code config — hooks, settings
+│   ├── settings.json               # Permissions, tool config
+│   └── hooks/                      # Doreen's voice — real-time behavioral controls
+│
+├── doreen/                         # The testing & grading framework
+│   ├── tests/
+│   │   ├── unit/                   # Directive compliance tests
+│   │   ├── integration/            # Domain task tests
+│   │   ├── functional/             # End-to-end workflow tests
+│   │   └── fixtures/               # Test scenarios (repos, files, configs)
+│   ├── grading/                    # Grading criteria, rubrics, critique prompts
+│   ├── monitoring/                 # Transcript analysis and metrics tooling
+│   ├── capture/                    # Quick-capture — "Write That Down"
+│   ├── runner/                     # Test runner with filtering
+│   └── results/                    # Test outputs, historical data, regressions
+│       ├── transcripts/
+│       ├── metrics/
+│       └── regressions/
+│
+├── project-a/                      # A real project (its own git repo)
+├── project-b/                      # Another project (its own git repo)
+└── ...
 ```
+
+The key insight: `.claude/` and `CLAUDE.md` at the stuart root *are* Doreen's enforcement layer — they apply everywhere. The `doreen/` directory is her brain — the tests, grading, and tooling that evaluate and improve Stuart over time. Projects are just Stuart's workspace.
 
 ## Status
 
