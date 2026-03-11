@@ -62,6 +62,16 @@
             "timeout": 5000
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "doreen/hooks/undelegated-exploration.sh",
+            "timeout": 5000
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -71,16 +81,6 @@
           {
             "type": "command",
             "command": "doreen/hooks/runaway-loops.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Read|Grep|Glob",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "doreen/hooks/undelegated-exploration.sh",
             "timeout": 5000
           }
         ]
