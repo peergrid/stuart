@@ -72,3 +72,14 @@ state_dir() {
     mkdir -p "$dir" 2>/dev/null
     echo "$dir"
 }
+
+# Detect whether this is the root agent (interactive terminal) or a subagent.
+# Root agents have a controlling terminal (tty_nr != 0 in /proc/$PPID/stat).
+# Subagents are spawned without a TTY.
+# Returns 0 if root agent, 1 if subagent.
+# Usage: if is_root_agent; then ... fi
+is_root_agent() {
+    local tty_nr
+    tty_nr=$(awk '{print $7}' /proc/$PPID/stat 2>/dev/null) || return 1
+    [ "$tty_nr" != "0" ]
+}
