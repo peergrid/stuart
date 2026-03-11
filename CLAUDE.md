@@ -42,6 +42,14 @@ Every project with a `docs/` directory follows this convention:
 
 When a decision is made, update the spec. The spec always reflects the current desired state. A fresh agent reads the docs, reads the code, and closes the gaps.
 
+### Spec Conventions
+
+Specs describe *what should exist* — behavior, structure, interfaces, constraints. They read like contracts: "The test runner MUST do X. When Y happens, it MUST produce Z." An agent can verify each statement against reality.
+
+- **Never delete a spec.** If something is removed from the desired state, replace the content with a short note explaining why it was removed and when.
+- **Keep specs atomic.** One concern per file — a feature, a component, or a cross-cutting concern (logging, error handling, architectural decisions). Cross-reference by filename if needed.
+- **File naming:** `kebab-case.md`. Name describes the component or feature, not a ticket number or date.
+
 ## The Implementation Loop
 
 Plans live in `workspace/plans/`. They are **not** a source of truth. They are ephemeral work orders — a crutch that helps get work done in roughly the right direction. They are written knowing they will be thrown away.
@@ -52,7 +60,7 @@ Plans live in `workspace/plans/`. They are **not** a source of truth. They are e
 1. **Gap analysis**: Compare `docs/` (desired) against the code (actual). Identify what's missing, broken, or wrong.
 2. **Plan**: Write a plan in `workspace/plans/` scoped to a specific gap. Break it into small, concrete tasks.
 3. **Execute**: Work the plan. Some will get done, some will be shortcut, most will be missed.
-4. **Discard the plan**: It has served its purpose. Delete or archive it.
+4. **Critique & Cleanup**: Critique what was produced, refactor, fix bugs, get tests passing, make sure everything that was built is in a working state.
 5. **Go to 1**: Re-analyze the gap. Write a new plan. Repeat.
 
 Convergence happens through iteration, not through a single pass. Plans are disposable — the docs and the code are what persist.
