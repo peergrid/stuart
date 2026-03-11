@@ -12,6 +12,19 @@
 
 Doreen provides the hooks, tests, grading, and monitoring that run across all projects. When working on a videogame or any other project, Doreen is the background infrastructure keeping Claude in line. This file is only relevant when working *on* Doreen herself.
 
+## Tool Development
+
+All doreen tools MUST be written in Go or shell scripts. No Python. No exceptions. This applies to CLI tools, analysis utilities, graders, and anything that ships as an executable. Go is the primary language; shell scripts are acceptable for thin wrappers or glue.
+
+### Transcript Query Tool (dq)
+
+The primary tool for transcript analysis. Spec: `doreen/docs/tools/transcript-query.md`. Source: `doreen/tools/dq/`.
+
+Skill specs for Claude's use:
+- `doreen/docs/tools/skills/transcript-explore.md` — session discovery and navigation
+- `doreen/docs/tools/skills/transcript-audit.md` — tool use pattern auditing
+- `doreen/docs/tools/skills/transcript-grade.md` — grader analysis workflows
+
 ## Architecture
 
 See `doreen/docs/architecture.md` for the full architectural overview, including test tiers, grading system, hooks, and workflow tools.
