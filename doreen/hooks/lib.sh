@@ -77,8 +77,14 @@ state_dir() {
 # Root agents have a controlling terminal (tty_nr != 0 in /proc/$PPID/stat).
 # Subagents are spawned without a TTY.
 # Returns 0 if root agent, 1 if subagent.
+#
+# Override for testing:
+#   DOREEN_FORCE_ROOT=1     — always report as root agent
+#   DOREEN_FORCE_SUBAGENT=1 — always report as subagent
 # Usage: if is_root_agent; then ... fi
 is_root_agent() {
+    [ "${DOREEN_FORCE_ROOT:-}" = "1" ] && return 0
+    [ "${DOREEN_FORCE_SUBAGENT:-}" = "1" ] && return 1
     local tty_nr
     tty_nr=$(awk '{print $7}' /proc/$PPID/stat 2>/dev/null) || return 1
     [ "$tty_nr" != "0" ]
