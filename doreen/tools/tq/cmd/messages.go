@@ -11,7 +11,7 @@ func init() {
 
 func runMessages(args []string) error {
 	fs := flag.NewFlagSet("messages", flag.ExitOnError)
-	registerGlobalFlags(fs)
+	registerBatchFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

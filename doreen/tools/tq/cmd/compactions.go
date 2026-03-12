@@ -12,7 +12,7 @@ func init() {
 func runCompactions(args []string) error {
 	fs := flag.NewFlagSet("compactions", flag.ExitOnError)
 	withContext := fs.Int("with-context", 0, "Show N turns around each compaction")
-	registerGlobalFlags(fs)
+	registerBatchFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

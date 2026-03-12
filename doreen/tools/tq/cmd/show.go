@@ -17,7 +17,7 @@ func runShow(args []string) error {
 	last := fs.String("last", "", "Jump to last occurrence")
 	nth := fs.Int("nth", 0, "Jump to Nth occurrence (use with target type as positional arg)")
 	context := fs.Int("context", 3, "Number of turns before and after to show")
-	registerGlobalFlags(fs)
+	registerCursorFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

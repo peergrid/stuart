@@ -12,7 +12,7 @@ func init() {
 func runTokens(args []string) error {
 	fs := flag.NewFlagSet("tokens", flag.ExitOnError)
 	summary := fs.Bool("summary", false, "Summary metrics only (no per-turn timeline)")
-	registerGlobalFlags(fs)
+	registerBatchFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

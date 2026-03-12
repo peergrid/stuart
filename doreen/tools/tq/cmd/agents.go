@@ -11,7 +11,7 @@ func init() {
 
 func runAgents(args []string) error {
 	fs := flag.NewFlagSet("agents", flag.ExitOnError)
-	registerGlobalFlags(fs)
+	registerBatchFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

@@ -12,7 +12,7 @@ func init() {
 func runFind(args []string) error {
 	fs := flag.NewFlagSet("find", flag.ExitOnError)
 	inMessages := fs.Bool("in-messages", false, "Search in message content")
-	registerGlobalFlags(fs)
+	registerBatchFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

@@ -1,6 +1,9 @@
 package transcript
 
-import "regexp"
+import (
+	"encoding/json"
+	"regexp"
+)
 
 // Filter defines criteria for selecting records.
 type Filter struct {
@@ -67,13 +70,79 @@ func (f *Filter) Matches(r *Record) bool {
 		return false
 	}
 
-	// TODO: implement remaining filters
-	// - ExternalOnly: skip isMeta, content starting with <, tool_result-only content
-	// - ToolName: check tool_use blocks for matching name
-	// - Contains: regex match against text content
-	// - Audit: resolve dot-path field, match against regex
+	// External only: skip meta records, sidechain, and tool-result-only user records
+	if f.ExternalOnly {
+		if r.IsMeta || r.IsSidechain {
+			return false
+		}
+		if r.Type == "system" {
+			return false
+		}
+		// User records that only contain tool_result blocks are not external
+		if r.Type == "user" && !IsExternalUserMessage(r) {
+			return false
+		}
+	}
+
+	// Tool name filter: record must contain a tool_use block with matching name
+	if f.ToolName != "" {
+		msg, err := r.ParseMessage()
+		if err != nil || msg == nil {
+			return false
+		}
+		tools := GetToolUses(msg.Content)
+		found := false
+		for _, t := range tools {
+			if t.Name == f.ToolName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	// Contains: regex match in text content
+	if f.containsRe != nil {
+		msg, err := r.ParseMessage()
+		if err != nil || msg == nil {
+			return false
+		}
+		text := GetTextContent(msg.Content)
+		if !f.containsRe.MatchString(text) {
+			return false
+		}
+	}
 
 	return true
+}
+
+// IsExternalUserMessage checks whether a user record is a genuine human message
+// (has at least one text content block) vs a tool-result-only record.
+func IsExternalUserMessage(r *Record) bool {
+	if r.Type != "user" {
+		return false
+	}
+	msg, err := r.ParseMessage()
+	if err != nil || msg == nil {
+		return false
+	}
+	blocks, err := ParseContentBlocks(msg.Content)
+	if err != nil {
+		// Might be a plain string — that counts as external
+		var s string
+		if json.Unmarshal(msg.Content, &s) == nil && s != "" {
+			return true
+		}
+		return false
+	}
+	for _, b := range blocks {
+		if b.Type == "text" {
+			return true
+		}
+	}
+	return false
 }
 
 // IsEmpty returns true if no filter criteria are set.

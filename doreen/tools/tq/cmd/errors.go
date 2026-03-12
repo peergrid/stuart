@@ -13,7 +13,7 @@ func runErrors(args []string) error {
 	fs := flag.NewFlagSet("errors", flag.ExitOnError)
 	errorType := fs.String("error-type", "", "Filter by error type: tool_error|hook_error|permission_denied|runtime_error")
 	withContext := fs.Int("with-context", 0, "Show N turns around each error")
-	registerGlobalFlags(fs)
+	registerBatchFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

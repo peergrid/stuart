@@ -12,7 +12,7 @@ func init() {
 func runAgentTrace(args []string) error {
 	fs := flag.NewFlagSet("agent-trace", flag.ExitOnError)
 	agent := fs.String("agent", "", "Filter to a specific agent by name or ID prefix")
-	registerGlobalFlags(fs)
+	registerBatchFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

@@ -11,7 +11,7 @@ func init() {
 
 func runAudit(args []string) error {
 	fs := flag.NewFlagSet("audit", flag.ExitOnError)
-	registerGlobalFlags(fs)
+	registerBatchFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

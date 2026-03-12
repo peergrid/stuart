@@ -34,17 +34,47 @@ tq <command> [flags]
 
 ### Scope Model
 
-`--since` means different things depending on the command type:
+Batch and cursor commands have separate scope flags. They are NOT shared.
 
-**Batch commands** (`stats`, `audit`, `errors`, `tokens`, `compactions`, `tools`, `messages`, `raw`, `critique-data`, `agent-trace`, `sessions`, `agents`, `find`): `--since` is a **filter**. Only records within the time window are included. Default: `24h`.
+**Batch commands** (`stats`, `audit`, `errors`, `tokens`, `compactions`, `tools`, `messages`, `raw`, `critique-data`, `agent-trace`, `sessions`, `agents`, `find`): `--since`/`--until` filter by time window. Default: last 24h.
 
-**Cursor commands** (`show`, `walk`): Use `--around` to position near an approximate time — "I think it happened around 2 days ago." This does NOT limit navigation. Once positioned, you can step forward or backward freely, even weeks past your starting point. All available transcripts are loaded. `--since` is not used on cursor commands.
+**Cursor commands** (`show`, `walk`): `--from`/`--until` define start and stop anchors. `--around` positions approximately. All available transcripts are loaded — no time limit on navigation.
+
+#### Batch flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--since DURATION` | `24h` | Batch commands: time filter. Accepts `30m`, `2h`, `3d`, `1w`, ISO date. |
-| `--around DURATION` | — | Cursor commands: approximate starting point. "I think it was about 2 days ago." |
-| `--until TIME` | now | End of window (batch commands only) |
+| `--since DURATION` | `24h` | Time filter start. Accepts `30m`, `2h`, `3d`, `1w`, ISO date. |
+| `--until TIME` | now | Time filter end. |
+
+#### Cursor flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--from ANCHOR` | start | Start position: timestamp, or anchor spec. |
+| `--until ANCHOR` | — | Stop position: same syntax as `--from`. |
+| `--around DURATION` | — | Approximate starting point. "I think it was about 2 days ago." |
+
+#### Anchor specs
+
+Both `--from` and `--until` accept anchor specs — patterns that match a point of interest in the transcript:
+
+| Spec | Description |
+|------|-------------|
+| `tool:NAME` | First use of tool NAME (e.g., `tool:Bash`, `tool:Read`) |
+| `tool:NAME:PATTERN` | First use of tool NAME where input matches PATTERN (e.g., `tool:Bash:jq`) |
+| `error` | First error record (tool error, permission denial, hook failure) |
+| `compaction` | First compaction boundary |
+| `user` | First external human message (not tool results) |
+| `assistant` | First assistant record |
+| `pattern:REGEX` | First record whose text matches REGEX |
+
+Anchors can be combined with `--around` to search from an approximate time: `--from "tool:Bash:jq" --around 4d` means "find the first Bash call containing jq, starting from about 4 days ago."
+
+#### Common flags (all commands)
+
+| Flag | Default | Description |
+|------|---------|-------------|
 | `--project NAME` | from CWD | Override project detection |
 | `--session UUID` | (all) | Filter to one session (rarely needed) |
 | `--all` | false | All projects |
@@ -52,9 +82,9 @@ tq <command> [flags]
 
 **Project detection:** tq maps the current working directory to a Claude project by converting the absolute path to a slug (`/home/user/stuart` → `-home-user-stuart`) and looking it up in `~/.claude/projects/`. It walks up parent directories if the exact CWD doesn't match.
 
-**Batch time window:** All session files whose modification time falls within the window are included. Records are merged chronologically across sessions, with a session indicator column where relevant. Default window is 24 hours.
+**Batch time window:** All session files whose modification time falls within the window are included. Records are merged chronologically across sessions. Default window is 24 hours.
 
-**Cursor loading:** All available transcripts are loaded. `--since` just positions the cursor near the specified time. You navigate freely from there.
+**Cursor loading:** All available transcripts are loaded. `--around` positions the search start. `--from` and `--until` define the walk range via anchors.
 
 **Examples:**
 ```
@@ -62,12 +92,12 @@ tq <command> [flags]
 tq errors                       # Errors in the last 24h
 tq errors --since 2d            # Errors in the last 2 days
 tq stats --since 1w             # Stats for the whole week
-tq audit --since 3d             # Tool use audit, last 3 days
 
-# Cursor — time as approximate position, unbounded navigation
-tq show --around 2d --first error --context 5   # Find first error near 2 days ago, navigate freely
-tq walk --around 3h                              # Start walking from ~3 hours ago, go anywhere
-tq walk --around 2d --reverse                    # Go to ~2 days ago, walk backward into older history
+# Cursor — anchors define range, walk between them
+tq walk --reverse --until user --role assistant --count  # Assistant turns since last human message
+tq walk --from "tool:Bash:jq" --around 4d --until "tool:Read" --role user --contains "poop" --count
+tq walk --around 3h                                      # Walk from ~3 hours ago
+tq walk --around 2d --reverse                            # Walk backward from ~2 days ago
 ```
 
 ## Commands
@@ -137,28 +167,39 @@ tq show --nth 3 compaction --context 10
 
 #### `tq walk`
 
-Step through turns with optional filters. All transcripts are loaded — `--since` sets where to start walking, not a boundary. You can walk backward past your starting point.
+Step through turns with optional filters. All transcripts are loaded — cursor commands have no time boundary.
+
+`--from` and `--until` accept anchor specs (see Scope Model above) to define the walk range. `--around` positions the search start approximately. All filters (`--role`, `--contains`, `--tool`, etc.) narrow what's counted/shown between the anchors.
 
 ```
 # Start walking from ~1 hour ago, tools only
 tq walk --around 1h --tools-only
 
-# Start from ~2 days ago and walk backward (into older history)
-tq walk --around 2d --reverse
-
 # Walk backward from now, last 20 turns
 tq walk --reverse --limit 20
 
-# Walk from a specific timestamp, forward
+# Walk from a specific timestamp
 tq walk --from "2026-03-10T14:00:00"
 
 # Walk only operator messages and responses
 tq walk --external-only
+
+# Count assistant turns since last human message
+tq walk --reverse --until user --role assistant --count
+
+# Check if warning text exists since last human message (exit code only)
+tq walk --reverse --until user --contains "warning text" --exists
+
+# Count user prompts containing "poop" between two tool uses
+tq walk --from "tool:Bash:jq" --around 4d --until "tool:Read:dangerouslyDisableSandbox" --role user --contains "poop" --count
+
+# Get the text of all assistant messages in a range
+tq walk --from "tool:Bash:deploy" --until error --role assistant --field text
 ```
 
 Output per turn:
 ```
---- Turn 42 | session:2ac9 | assistant | 2026-03-10 14:22:05 | 892 out tokens ---
+--- Turn 42 | session:2ac9 | assistant | 2026-03-10 14:22:05 ---
 [Text] I'll read the file first to understand the current structure.
 [Tool: Read] /home/user/project/main.go
 [Tool: Grep] pattern="TODO" path=/home/user/project/
@@ -353,7 +394,7 @@ Agent: observer (session:2ac9, sub-001)
 
 ### Output Modes
 
-Every command supports three output modes:
+Every command supports three output modes, plus three output modifiers:
 
 | Flag | Mode | Description |
 |------|------|-------------|
@@ -361,7 +402,15 @@ Every command supports three output modes:
 | `--json` | JSON | Structured JSON for piping to other tools |
 | `--jsonl` | JSONL | One JSON object per line for streaming |
 
-### Global Filters
+| Flag | Modifier | Description |
+|------|----------|-------------|
+| `--count` | Count | Output only the count of matching records (a single integer) |
+| `--exists` | Exists | No output. Exit 0 if any match, exit 1 if none. Short-circuits on first match. |
+| `--field PATH` | Project | Output a single field from each record, one per line. Dot-notation (e.g., `input.command`). |
+
+`--count` and `--exists` are designed for hooks and scripts. `--field` eliminates jq for simple field extraction.
+
+### Common Filters
 
 These flags work with any command that processes records:
 
@@ -381,13 +430,9 @@ These flags work with any command that processes records:
 
 The cursor model is how `tq show` and `tq walk` navigate transcripts. **All available transcripts are loaded** — cursor commands have no time boundary. Records are merged chronologically across sessions and assigned sequential **turn numbers** (1-indexed within the merged timeline).
 
-**Unbounded navigation:** Once positioned, the cursor can move freely in either direction through the entire transcript history. `--since` on cursor commands is a hint for where to start looking, not a filter. You can start at "about 2 days ago" and walk backward into last week.
+**Anchoring:** `--from` and `--until` accept anchor specs to define the range of interest. `--around` provides an approximate search start. Anchors can match tool uses, errors, compactions, roles, or text patterns (see Scope Model above).
 
-**Anchoring:** You set a cursor position by timestamp (`--at TS`), approximate time (`--around 2d`), or semantic anchor (`--first`/`--last`/`--nth N` target). When `--around` is combined with anchors, it means "find the first/nth match starting from around this time."
-
-**Context:** `--context N` shows N turns before and after the anchor. The context window respects content filters: if you filter to `--tools-only`, context shows only tool call turns within the window.
-
-**Walking:** `tq walk` advances the cursor one turn at a time, printing each turn. `--from TIMESTAMP` or `--around DURATION` sets the starting point. `--reverse` walks backward. `--limit N` stops after N turns. Walking is not bounded by any time window.
+**Walking:** `tq walk` steps through turns between `--from` and `--until` anchors. `--reverse` walks backward. `--limit N` caps output. Combined with `--count`, `--exists`, `--field`, and filters, walk answers questions like "how many assistant turns since the last user message?" or "did this text appear in recent turns?" — without jq.
 
 ## How tq Serves Doreen's Graders
 

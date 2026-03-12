@@ -11,7 +11,7 @@ func init() {
 
 func runRaw(args []string) error {
 	fs := flag.NewFlagSet("raw", flag.ExitOnError)
-	registerGlobalFlags(fs)
+	registerBatchFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

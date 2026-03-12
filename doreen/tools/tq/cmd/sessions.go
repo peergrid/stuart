@@ -11,7 +11,7 @@ func init() {
 
 func runSessions(args []string) error {
 	fs := flag.NewFlagSet("sessions", flag.ExitOnError)
-	registerGlobalFlags(fs)
+	registerBatchFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

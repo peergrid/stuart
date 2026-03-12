@@ -11,7 +11,7 @@ func init() {
 
 func runCritiqueData(args []string) error {
 	fs := flag.NewFlagSet("critique-data", flag.ExitOnError)
-	registerGlobalFlags(fs)
+	registerBatchFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

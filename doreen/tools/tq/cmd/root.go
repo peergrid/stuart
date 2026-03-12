@@ -1,25 +1,36 @@
 // Package cmd implements the tq CLI command tree.
 //
-// Each subcommand lives in its own file. Global flags (time window,
-// filters, output mode) are defined here and inherited by all subcommands.
+// Each subcommand lives in its own file. Common flags (filters, output mode)
+// are defined here. Time/scope flags are split: batch commands get --since/--until,
+// cursor commands get --from/--until/--around with anchor semantics.
 package cmd
 
 import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
+	"time"
+
+	"stuart/doreen/tools/tq/internal/transcript"
 )
 
 // Global flags shared across all subcommands.
 var (
-	// Scope — all time-based, project defaults from CWD
+	// Scope — project and session
 	flagProject   string
 	flagSession   string // Optional power-user filter, never required
-	flagSince     string // Batch: time filter. Default: "24h".
-	flagUntil     string
-	flagAround    string // Cursor: approximate starting point. "around 2 days ago"
 	flagAll       bool
 	flagSubagents bool
+
+	// Batch time flags (registered by batch commands only)
+	flagSince string
+	flagUntil string
+
+	// Cursor flags (registered by cursor commands only)
+	flagAround string
+	flagFrom   string     // Anchor spec or timestamp
+	flagStop   string     // Anchor spec or timestamp (walk --until)
 
 	// Output
 	flagJSON       bool
@@ -35,16 +46,18 @@ var (
 	flagAudit        string
 	flagExternalOnly bool
 	flagNoSidechain  bool
+
+	// Output modifiers
+	flagCount  bool
+	flagExists bool
+	flagField  string
 )
 
-// registerGlobalFlags adds the shared flags to a FlagSet.
-func registerGlobalFlags(fs *flag.FlagSet) {
+// registerCommonFlags adds flags shared by ALL subcommands.
+func registerCommonFlags(fs *flag.FlagSet) {
 	// Scope
 	fs.StringVar(&flagProject, "project", "", "Project name (default: detected from CWD)")
 	fs.StringVar(&flagSession, "session", "", "Filter to a specific session UUID prefix")
-	fs.StringVar(&flagSince, "since", "24h", "Batch: time filter start (30m, 2h, 3d, 1w, ISO date)")
-	fs.StringVar(&flagUntil, "until", "", "Batch: time filter end (default: now)")
-	fs.StringVar(&flagAround, "around", "", "Cursor: approximate starting point (2h, 2d, 1w, ISO date)")
 	fs.BoolVar(&flagAll, "all", false, "All projects")
 	fs.BoolVar(&flagSubagents, "subagents", false, "Include subagent transcripts")
 
@@ -62,6 +75,26 @@ func registerGlobalFlags(fs *flag.FlagSet) {
 	fs.StringVar(&flagAudit, "audit", "", "Match JSON field by regex (field=regex)")
 	fs.BoolVar(&flagExternalOnly, "external-only", false, "Only genuine operator messages")
 	fs.BoolVar(&flagNoSidechain, "no-sidechain", false, "Skip sidechain records")
+
+	// Output modifiers
+	fs.BoolVar(&flagCount, "count", false, "Output only the count of matching records")
+	fs.BoolVar(&flagExists, "exists", false, "Exit 0 if any match, exit 1 if none (no output)")
+	fs.StringVar(&flagField, "field", "", "Project a single field from each record (dot-notation, e.g. input.command)")
+}
+
+// registerBatchFlags adds --since/--until for batch commands.
+func registerBatchFlags(fs *flag.FlagSet) {
+	registerCommonFlags(fs)
+	fs.StringVar(&flagSince, "since", "24h", "Time filter start (30m, 2h, 3d, 1w, ISO date)")
+	fs.StringVar(&flagUntil, "until", "", "Time filter end (default: now)")
+}
+
+// registerCursorFlags adds --from/--until/--around for cursor commands.
+func registerCursorFlags(fs *flag.FlagSet) {
+	registerCommonFlags(fs)
+	fs.StringVar(&flagFrom, "from", "", "Start anchor: timestamp or spec (tool:Bash:jq, error, user, pattern:REGEX)")
+	fs.StringVar(&flagStop, "until", "", "Stop anchor: same syntax as --from")
+	fs.StringVar(&flagAround, "around", "", "Approximate starting point (2h, 2d, 1w, ISO date)")
 }
 
 // subcommand maps name -> handler.
@@ -101,6 +134,74 @@ func Execute() error {
 	return fmt.Errorf("unknown command %q — run 'tq help' for usage", name)
 }
 
+// filterFromFlags builds a Filter from global flag values and compiles it.
+func filterFromFlags() (*transcript.Filter, error) {
+	var auditField, auditPattern string
+	if flagAudit != "" {
+		parts := strings.SplitN(flagAudit, "=", 2)
+		if len(parts) == 2 {
+			auditField = parts[0]
+			auditPattern = parts[1]
+		}
+	}
+	f := &transcript.Filter{
+		Role:         flagRole,
+		RecordType:   flagType,
+		ToolName:     flagTool,
+		Contains:     flagContains,
+		AuditField:   auditField,
+		AuditPattern: auditPattern,
+		ExternalOnly: flagExternalOnly,
+		NoSidechain:  flagNoSidechain,
+	}
+	if err := f.Compile(); err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+// resolveBatchFiles finds transcript files for batch commands using --since/--until.
+func resolveBatchFiles() ([]string, error) {
+	projDir, err := resolveProjectDir()
+	if err != nil {
+		return nil, err
+	}
+
+	sinceStr := flagSince
+	if sinceStr == "" {
+		sinceStr = "24h"
+	}
+	since, err := transcript.ParseDuration(sinceStr)
+	if err != nil {
+		return nil, err
+	}
+	until := time.Now()
+	if flagUntil != "" {
+		until, err = transcript.ParseDuration(flagUntil)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return transcript.FindSessionsInWindow(projDir, since, until)
+}
+
+// resolveCursorFiles finds all transcript files for cursor commands.
+func resolveCursorFiles() ([]string, error) {
+	projDir, err := resolveProjectDir()
+	if err != nil {
+		return nil, err
+	}
+	since := time.Now().AddDate(-1, 0, 0) // 1 year back
+	return transcript.FindSessionsInWindow(projDir, since, time.Now())
+}
+
+func resolveProjectDir() (string, error) {
+	if flagProject != "" {
+		return transcript.ProjectDirFromName(flagProject)
+	}
+	return transcript.ProjectDirFromCWD()
+}
+
 func printUsage() {
 	fmt.Println("tq — Transcript Query: analysis tool for Claude Code sessions")
 	fmt.Println()
@@ -115,6 +216,10 @@ func printUsage() {
 	fmt.Println("  tq tools --since 1h           Tool calls in the last hour")
 	fmt.Println("  tq stats                      Stats for last 24h, all sessions")
 	fmt.Println("  tq audit --since 3d           Tool use audit, last 3 days")
+	fmt.Println()
+	fmt.Println("  tq walk --reverse --until user --role assistant --count")
+	fmt.Println("  tq walk --from \"tool:Bash:jq\" --around 4d --until \"tool:Read\" --count")
+	fmt.Println("  tq tools --tool Bash --limit 10 --field input.command")
 	fmt.Println()
 	fmt.Println("Discovery:")
 	fmt.Println("  sessions    List sessions with metadata")
@@ -139,18 +244,33 @@ func printUsage() {
 	fmt.Println("  critique-data  Extract data for transcript critique grader")
 	fmt.Println("  agent-trace    Trace subagent lifecycles")
 	fmt.Println()
-	fmt.Println("Scope flags:")
-	fmt.Println("  --since DURATION  Batch: time filter (30m, 2h, 3d, 1w, ISO date; default: 24h)")
-	fmt.Println("  --until TIME      Batch: end of filter window (default: now)")
-	fmt.Println("  --around DURATION Cursor: approximate starting point (2h, 2d, 1w, ISO date)")
+	fmt.Println("Batch scope flags (stats, errors, tools, audit, etc.):")
+	fmt.Println("  --since DURATION  Time filter start (30m, 2h, 3d, 1w, ISO date; default: 24h)")
+	fmt.Println("  --until TIME      Time filter end (default: now)")
+	fmt.Println()
+	fmt.Println("Cursor scope flags (walk, show):")
+	fmt.Println("  --from ANCHOR     Start: timestamp or anchor spec (tool:Bash:jq, error, user)")
+	fmt.Println("  --until ANCHOR    Stop: same syntax as --from")
+	fmt.Println("  --around DURATION Approximate starting point (2h, 2d, 1w, ISO date)")
+	fmt.Println()
+	fmt.Println("Common flags:")
 	fmt.Println("  --project NAME    Override project (default: from CWD)")
 	fmt.Println("  --session UUID    Filter to one session (rarely needed)")
 	fmt.Println("  --all             All projects")
 	fmt.Println("  --subagents       Include subagent transcripts")
+	fmt.Println()
+	fmt.Println("Filter flags:")
+	fmt.Println("  --role ROLE       Filter by role: user|assistant|system|all")
+	fmt.Println("  --tool NAME       Filter for tool_use by name")
+	fmt.Println("  --contains REGEX  Regex match in message text")
+	fmt.Println("  --external-only   Only genuine operator messages")
 	fmt.Println()
 	fmt.Println("Output flags:")
 	fmt.Println("  --json            Structured JSON output")
 	fmt.Println("  --jsonl           Streaming JSONL output")
 	fmt.Println("  --limit N         Max records to output")
 	fmt.Println("  --no-truncate     Show full content")
+	fmt.Println("  --count           Output only the count of matching records")
+	fmt.Println("  --exists          Exit 0 if any match, exit 1 if none (no output)")
+	fmt.Println("  --field PATH      Project a single field (dot-notation, e.g. input.command)")
 }
