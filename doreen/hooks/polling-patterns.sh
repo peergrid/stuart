@@ -1,6 +1,7 @@
 #!/bin/bash
-# PreToolUse:Bash — Block sleep+check polling patterns
-# Detects: sleep followed by check commands, repeated identical commands
+# PreToolUse:Bash — Block sleep+check polling patterns and repeated identical commands.
+# Sleep detection is stateless (pattern match on the command).
+# Repeated command detection uses tq to scan recent Bash calls from the transcript.
 set -euo pipefail
 
 source "$(dirname "$0")/lib.sh"
@@ -17,18 +18,12 @@ fi
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null)
 [ -z "$CMD" ] && exit 0
 
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"' 2>/dev/null)
-STATE_DIR=$(state_dir)
-HISTORY_FILE="$STATE_DIR/cmd-history-${SESSION_ID}"
-
-# --- Detect sleep+check patterns ---
+# --- Detect sleep+check patterns (stateless) ---
 
 # sleep followed by a check command on the same line or in a sequence
 if echo "$CMD" | grep -qE '\bsleep\s+[0-9]'; then
     # Exception: external process checks that don't have completion notifications
-    # e.g., gh run view, curl to check if a service is up
     if echo "$CMD" | grep -qE '(gh\s+run\s+(view|watch)|curl\s.*localhost|curl\s.*127\.0\.0\.1)' && ! echo "$CMD" | grep -qE 'while|for|until|loop'; then
-        # Single check after sleep is okay, but not in a loop
         exit 0
     fi
 
@@ -40,28 +35,22 @@ if echo "$CMD" | grep -qE '(while|until)\s.*sleep|sleep.*&&.*(while|until)'; the
     emit_block "BLOCKED: Polling loop detected (while/until + sleep). Use 'run_in_background' for long-running tasks and wait for completion notification."
 fi
 
-# --- Detect repeated identical commands ---
+# --- Detect repeated identical commands via tq ---
 
-# Record current command
-mkdir -p "$STATE_DIR" 2>/dev/null
 CMD_HASH=$(echo "$CMD" | md5sum | cut -d' ' -f1)
-TIMESTAMP=$(date +%s)
 
-# Append current command with timestamp
-echo "$TIMESTAMP $CMD_HASH" >> "$HISTORY_FILE" 2>/dev/null
+# Get last 10 Bash tool calls from the transcript
+RECENT_CMDS=$("$TQ" tools --tool Bash --limit 10 --jsonl 2>/dev/null) || exit 0
+[ -z "$RECENT_CMDS" ] && exit 0
 
-# Keep only last 20 entries to prevent file growth
-if [ -f "$HISTORY_FILE" ]; then
-    tail -20 "$HISTORY_FILE" > "$HISTORY_FILE.tmp" 2>/dev/null && mv "$HISTORY_FILE.tmp" "$HISTORY_FILE" 2>/dev/null
-fi
+# Count how many of the last 10 Bash commands match the current command hash
+REPEAT_COUNT=$(echo "$RECENT_CMDS" | jq -r '.input.command // ""' 2>/dev/null | while read -r line; do
+    echo "$line" | md5sum | cut -d' ' -f1
+done | grep -c "^${CMD_HASH}$" 2>/dev/null || echo 0)
 
-# Check for repeated identical commands (same hash 3+ times in last 10 entries)
-if [ -f "$HISTORY_FILE" ]; then
-    REPEAT_COUNT=$(tail -10 "$HISTORY_FILE" | awk '{print $2}' | grep -c "^${CMD_HASH}$" 2>/dev/null || true)
-    if [ "$REPEAT_COUNT" -ge 3 ]; then
-        log_event "polling-patterns" "repeated-command" "hash=$CMD_HASH count=$REPEAT_COUNT"
-        emit_block "BLOCKED: You have executed this same command $REPEAT_COUNT times recently. This looks like polling. If waiting for a background task, you will be notified when it finishes. If checking external status, run the check once, not in a loop."
-    fi
+if [ "$REPEAT_COUNT" -ge 3 ]; then
+    log_event "polling-patterns" "repeated-command" "hash=$CMD_HASH count=$REPEAT_COUNT"
+    emit_block "BLOCKED: You have executed this same command $REPEAT_COUNT times recently. This looks like polling. If waiting for a background task, you will be notified when it finishes. If checking external status, run the check once, not in a loop."
 fi
 
 exit 0

@@ -68,19 +68,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "doreen/hooks/undelegated-exploration.sh",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "doreen/hooks/runaway-loops.sh",
+            "command": "doreen/hooks/undelegated-work.sh",
             "timeout": 5000
           }
         ]

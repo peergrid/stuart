@@ -83,3 +83,6 @@ is_root_agent() {
     tty_nr=$(awk '{print $7}' /proc/$PPID/stat 2>/dev/null) || return 1
     [ "$tty_nr" != "0" ]
 }
+
+# Path to the tq binary. Hooks use tq for transcript queries.
+TQ="${DOREEN_TQ:-/home/cvk/stuart/doreen/tools/tq/tq}"
