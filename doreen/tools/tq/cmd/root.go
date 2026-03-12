@@ -1,6 +1,6 @@
-// Package cmd implements the dq CLI command tree.
+// Package cmd implements the tq CLI command tree.
 //
-// Each subcommand lives in its own file. Global flags (session specifiers,
+// Each subcommand lives in its own file. Global flags (time window,
 // filters, output mode) are defined here and inherited by all subcommands.
 package cmd
 
@@ -12,34 +12,37 @@ import (
 
 // Global flags shared across all subcommands.
 var (
-	flagProject    string
-	flagSession    string
-	flagLatest     bool
-	flagAll        bool
-	flagSubagents  bool
+	// Scope — all time-based, project defaults from CWD
+	flagProject   string
+	flagSession   string // Optional power-user filter, never required
+	flagSince     string // Default: "24h". Accepts: 30m, 2h, 12h, 1d, 3d, 1w, ISO date
+	flagUntil     string
+	flagAll       bool
+	flagSubagents bool
+
+	// Output
 	flagJSON       bool
 	flagJSONL      bool
 	flagLimit      int
 	flagNoTruncate bool
 
 	// Filters
-	flagRole        string
-	flagType        string
-	flagTool        string
-	flagContains    string
-	flagAudit       string
-	flagSince       string
-	flagUntil       string
+	flagRole         string
+	flagType         string
+	flagTool         string
+	flagContains     string
+	flagAudit        string
 	flagExternalOnly bool
 	flagNoSidechain  bool
 )
 
 // registerGlobalFlags adds the shared flags to a FlagSet.
 func registerGlobalFlags(fs *flag.FlagSet) {
-	// Session specifiers
-	fs.StringVar(&flagProject, "project", "", "Project name")
-	fs.StringVar(&flagSession, "session", "", "Session UUID prefix")
-	fs.BoolVar(&flagLatest, "latest", false, "Most recent session")
+	// Scope
+	fs.StringVar(&flagProject, "project", "", "Project name (default: detected from CWD)")
+	fs.StringVar(&flagSession, "session", "", "Filter to a specific session UUID prefix")
+	fs.StringVar(&flagSince, "since", "24h", "Time window start: 30m, 2h, 3d, 1w, or ISO date")
+	fs.StringVar(&flagUntil, "until", "", "Time window end (default: now)")
 	fs.BoolVar(&flagAll, "all", false, "All projects")
 	fs.BoolVar(&flagSubagents, "subagents", false, "Include subagent transcripts")
 
@@ -55,8 +58,6 @@ func registerGlobalFlags(fs *flag.FlagSet) {
 	fs.StringVar(&flagTool, "tool", "", "Filter for tool_use by name")
 	fs.StringVar(&flagContains, "contains", "", "Regex match in message text")
 	fs.StringVar(&flagAudit, "audit", "", "Match JSON field by regex (field=regex)")
-	fs.StringVar(&flagSince, "since", "", "Records after this ISO timestamp")
-	fs.StringVar(&flagUntil, "until", "", "Records before this ISO timestamp")
 	fs.BoolVar(&flagExternalOnly, "external-only", false, "Only genuine operator messages")
 	fs.BoolVar(&flagNoSidechain, "no-sidechain", false, "Skip sidechain records")
 }
@@ -95,22 +96,32 @@ func Execute() error {
 		}
 	}
 
-	return fmt.Errorf("unknown command %q — run 'dq help' for usage", name)
+	return fmt.Errorf("unknown command %q — run 'tq help' for usage", name)
 }
 
 func printUsage() {
-	fmt.Println("dq — Doreen Query: transcript analysis tool")
+	fmt.Println("tq — Transcript Query: analysis tool for Claude Code sessions")
 	fmt.Println()
-	fmt.Println("Usage: dq <command> [flags] [session-specifier]")
+	fmt.Println("Usage: tq <command> [flags]")
+	fmt.Println()
+	fmt.Println("Project is detected from CWD. Time window defaults to last 24 hours.")
+	fmt.Println("All queries span every session in the time window automatically.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  tq errors                     Errors in the last 24h")
+	fmt.Println("  tq errors --since 2d          Errors in the last 2 days")
+	fmt.Println("  tq tools --since 1h           Tool calls in the last hour")
+	fmt.Println("  tq stats                      Stats for last 24h, all sessions")
+	fmt.Println("  tq audit --since 3d           Tool use audit, last 3 days")
 	fmt.Println()
 	fmt.Println("Discovery:")
 	fmt.Println("  sessions    List sessions with metadata")
-	fmt.Println("  agents      List subagents for a session")
+	fmt.Println("  agents      List subagents across sessions")
 	fmt.Println("  find        Search sessions/agents by content")
 	fmt.Println()
 	fmt.Println("Navigation:")
 	fmt.Println("  show        Show records around a point of interest")
-	fmt.Println("  walk        Step through a transcript turn by turn")
+	fmt.Println("  walk        Step through turns across sessions")
 	fmt.Println()
 	fmt.Println("Query:")
 	fmt.Println("  messages    Extract messages with filtering")
@@ -118,7 +129,7 @@ func printUsage() {
 	fmt.Println("  raw         Dump raw JSONL records")
 	fmt.Println()
 	fmt.Println("Analysis:")
-	fmt.Println("  stats       Session summary statistics")
+	fmt.Println("  stats       Summary statistics")
 	fmt.Println("  tokens      Token consumption analysis")
 	fmt.Println("  compactions Detect compaction events")
 	fmt.Println("  errors      Extract errors and failures")
@@ -126,16 +137,17 @@ func printUsage() {
 	fmt.Println("  critique-data  Extract data for transcript critique grader")
 	fmt.Println("  agent-trace    Trace subagent lifecycles")
 	fmt.Println()
-	fmt.Println("Global flags:")
-	fmt.Println("  --project NAME    Project name")
-	fmt.Println("  --session UUID    Session by UUID prefix")
-	fmt.Println("  --latest          Most recent session")
+	fmt.Println("Scope flags:")
+	fmt.Println("  --since DURATION  Time window: 30m, 2h, 3d, 1w, or ISO date (default: 24h)")
+	fmt.Println("  --until TIME      End of window (default: now)")
+	fmt.Println("  --project NAME    Override project (default: from CWD)")
+	fmt.Println("  --session UUID    Filter to one session (rarely needed)")
 	fmt.Println("  --all             All projects")
 	fmt.Println("  --subagents       Include subagent transcripts")
+	fmt.Println()
+	fmt.Println("Output flags:")
 	fmt.Println("  --json            Structured JSON output")
 	fmt.Println("  --jsonl           Streaming JSONL output")
 	fmt.Println("  --limit N         Max records to output")
 	fmt.Println("  --no-truncate     Show full content")
-	fmt.Println()
-	fmt.Println("See doreen/docs/tools/transcript-query.md for full documentation.")
 }

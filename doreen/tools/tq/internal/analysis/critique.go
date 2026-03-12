@@ -1,6 +1,6 @@
 package analysis
 
-import "stuart/doreen/tools/dq/internal/transcript"
+import "stuart/doreen/tools/tq/internal/transcript"
 
 // CritiqueData holds the structured data for the transcript-critique grader.
 type CritiqueData struct {

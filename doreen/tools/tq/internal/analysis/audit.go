@@ -3,7 +3,7 @@
 // error extraction, agent tracing, and critique data extraction.
 package analysis
 
-import "stuart/doreen/tools/dq/internal/transcript"
+import "stuart/doreen/tools/tq/internal/transcript"
 
 // AuditResult holds the output of a tool use audit.
 type AuditResult struct {

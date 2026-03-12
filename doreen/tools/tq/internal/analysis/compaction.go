@@ -1,6 +1,6 @@
 package analysis
 
-import "stuart/doreen/tools/dq/internal/transcript"
+import "stuart/doreen/tools/tq/internal/transcript"
 
 // CompactionEvent describes a detected compaction.
 type CompactionEvent struct {

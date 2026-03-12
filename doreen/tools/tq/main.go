@@ -1,4 +1,4 @@
-// dq — Doreen Query: transcript analysis tool for Claude Code sessions.
+// tq — Doreen Query: transcript analysis tool for Claude Code sessions.
 //
 // Treats JSONL transcript files as a queryable database with cursor-based
 // navigation, composable filters, and built-in analysis modes that serve
@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"os"
 
-	"stuart/doreen/tools/dq/cmd"
+	"stuart/doreen/tools/tq/cmd"
 )
 
 func main() {
 	if err := cmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "dq: %v\n", err)
+		fmt.Fprintf(os.Stderr, "tq: %v\n", err)
 		os.Exit(1)
 	}
 }
