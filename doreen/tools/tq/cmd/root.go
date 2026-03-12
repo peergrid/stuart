@@ -15,8 +15,9 @@ var (
 	// Scope — all time-based, project defaults from CWD
 	flagProject   string
 	flagSession   string // Optional power-user filter, never required
-	flagSince     string // Default: "24h". Accepts: 30m, 2h, 12h, 1d, 3d, 1w, ISO date
+	flagSince     string // Batch: time filter. Default: "24h".
 	flagUntil     string
+	flagAround    string // Cursor: approximate starting point. "around 2 days ago"
 	flagAll       bool
 	flagSubagents bool
 
@@ -41,8 +42,9 @@ func registerGlobalFlags(fs *flag.FlagSet) {
 	// Scope
 	fs.StringVar(&flagProject, "project", "", "Project name (default: detected from CWD)")
 	fs.StringVar(&flagSession, "session", "", "Filter to a specific session UUID prefix")
-	fs.StringVar(&flagSince, "since", "24h", "Time window start: 30m, 2h, 3d, 1w, or ISO date")
-	fs.StringVar(&flagUntil, "until", "", "Time window end (default: now)")
+	fs.StringVar(&flagSince, "since", "24h", "Batch: time filter start (30m, 2h, 3d, 1w, ISO date)")
+	fs.StringVar(&flagUntil, "until", "", "Batch: time filter end (default: now)")
+	fs.StringVar(&flagAround, "around", "", "Cursor: approximate starting point (2h, 2d, 1w, ISO date)")
 	fs.BoolVar(&flagAll, "all", false, "All projects")
 	fs.BoolVar(&flagSubagents, "subagents", false, "Include subagent transcripts")
 
@@ -138,8 +140,9 @@ func printUsage() {
 	fmt.Println("  agent-trace    Trace subagent lifecycles")
 	fmt.Println()
 	fmt.Println("Scope flags:")
-	fmt.Println("  --since DURATION  Time window: 30m, 2h, 3d, 1w, or ISO date (default: 24h)")
-	fmt.Println("  --until TIME      End of window (default: now)")
+	fmt.Println("  --since DURATION  Batch: time filter (30m, 2h, 3d, 1w, ISO date; default: 24h)")
+	fmt.Println("  --until TIME      Batch: end of filter window (default: now)")
+	fmt.Println("  --around DURATION Cursor: approximate starting point (2h, 2d, 1w, ISO date)")
 	fmt.Println("  --project NAME    Override project (default: from CWD)")
 	fmt.Println("  --session UUID    Filter to one session (rarely needed)")
 	fmt.Println("  --all             All projects")

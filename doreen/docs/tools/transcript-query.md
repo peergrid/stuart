@@ -34,12 +34,17 @@ tq <command> [flags]
 
 ### Scope Model
 
-All queries operate on a **time window** across **all sessions** for the current project.
+`--since` means different things depending on the command type:
+
+**Batch commands** (`stats`, `audit`, `errors`, `tokens`, `compactions`, `tools`, `messages`, `raw`, `critique-data`, `agent-trace`, `sessions`, `agents`, `find`): `--since` is a **filter**. Only records within the time window are included. Default: `24h`.
+
+**Cursor commands** (`show`, `walk`): Use `--around` to position near an approximate time — "I think it happened around 2 days ago." This does NOT limit navigation. Once positioned, you can step forward or backward freely, even weeks past your starting point. All available transcripts are loaded. `--since` is not used on cursor commands.
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--since DURATION` | `24h` | Start of window: `30m`, `2h`, `12h`, `1d`, `3d`, `1w`, or ISO date |
-| `--until TIME` | now | End of window |
+| `--since DURATION` | `24h` | Batch commands: time filter. Accepts `30m`, `2h`, `3d`, `1w`, ISO date. |
+| `--around DURATION` | — | Cursor commands: approximate starting point. "I think it was about 2 days ago." |
+| `--until TIME` | now | End of window (batch commands only) |
 | `--project NAME` | from CWD | Override project detection |
 | `--session UUID` | (all) | Filter to one session (rarely needed) |
 | `--all` | false | All projects |
@@ -47,17 +52,22 @@ All queries operate on a **time window** across **all sessions** for the current
 
 **Project detection:** tq maps the current working directory to a Claude project by converting the absolute path to a slug (`/home/user/stuart` → `-home-user-stuart`) and looking it up in `~/.claude/projects/`. It walks up parent directories if the exact CWD doesn't match.
 
-**Time window:** All session files whose modification time falls within the window are included. Records are merged chronologically across sessions, with a session indicator column where relevant. Default window is 24 hours.
+**Batch time window:** All session files whose modification time falls within the window are included. Records are merged chronologically across sessions, with a session indicator column where relevant. Default window is 24 hours.
+
+**Cursor loading:** All available transcripts are loaded. `--since` just positions the cursor near the specified time. You navigate freely from there.
 
 **Examples:**
 ```
-tq errors                       # Errors in the last 24h, all sessions
+# Batch — time as filter
+tq errors                       # Errors in the last 24h
 tq errors --since 2d            # Errors in the last 2 days
-tq tools --since 1h             # Tool calls in the last hour
-tq stats                        # Stats for last 24h
 tq stats --since 1w             # Stats for the whole week
 tq audit --since 3d             # Tool use audit, last 3 days
-tq show --first error --since 2h  # First error in last 2 hours
+
+# Cursor — time as approximate position, unbounded navigation
+tq show --around 2d --first error --context 5   # Find first error near 2 days ago, navigate freely
+tq walk --around 3h                              # Start walking from ~3 hours ago, go anywhere
+tq walk --around 2d --reverse                    # Go to ~2 days ago, walk backward into older history
 ```
 
 ## Commands
@@ -101,20 +111,20 @@ tq find --in-messages "fix the bug" --since 3d  # Find sessions with text
 
 #### `tq show`
 
-Show records around a point of interest. This is the core navigation command.
+Show records around a point of interest. This is the core navigation command. All transcripts are loaded — `--since` positions the search start, it does not limit what you can see.
 
 ```
-# Show the first error with 5 turns of context
+# Show the first error with 5 turns of context (searches all history)
 tq show --first error --context 5
 
-# Show the first compaction event
-tq show --first compaction --context 10
+# "I think it was about 2 days ago" — start searching near there
+tq show --around 2d --first error --context 5
 
 # Show a specific timestamp with context
 tq show --at "2026-03-10T14:22:00" --context 5
 
-# Show the 3rd error in last 2 days
-tq show --nth 3 error --context 5 --since 2d
+# Show the 3rd compaction ever (no time limit)
+tq show --nth 3 compaction --context 10
 ```
 
 **Anchor points** (what `--first`, `--last`, `--nth N` can target):
@@ -127,20 +137,23 @@ tq show --nth 3 error --context 5 --since 2d
 
 #### `tq walk`
 
-Step through turns with optional filters. Interactive-style output for understanding flow.
+Step through turns with optional filters. All transcripts are loaded — `--since` sets where to start walking, not a boundary. You can walk backward past your starting point.
 
 ```
-# Walk through the last hour, tools only
-tq walk --since 1h --tools-only
+# Start walking from ~1 hour ago, tools only
+tq walk --around 1h --tools-only
 
-# Walk through only operator messages and responses
-tq walk --external-only
+# Start from ~2 days ago and walk backward (into older history)
+tq walk --around 2d --reverse
 
 # Walk backward from now, last 20 turns
 tq walk --reverse --limit 20
 
-# Walk from a specific timestamp
+# Walk from a specific timestamp, forward
 tq walk --from "2026-03-10T14:00:00"
+
+# Walk only operator messages and responses
+tq walk --external-only
 ```
 
 Output per turn:
@@ -366,13 +379,15 @@ These flags work with any command that processes records:
 
 ### Cursor Model
 
-The cursor model is how `tq show` and `tq walk` navigate transcripts. Records are merged chronologically across sessions and assigned sequential **turn numbers** (1-indexed within the merged timeline). Turn numbers provide stable references for navigation.
+The cursor model is how `tq show` and `tq walk` navigate transcripts. **All available transcripts are loaded** — cursor commands have no time boundary. Records are merged chronologically across sessions and assigned sequential **turn numbers** (1-indexed within the merged timeline).
 
-**Anchoring:** You set a cursor position by timestamp (`--at TS`) or semantic anchor (`--first`/`--last`/`--nth N` target).
+**Unbounded navigation:** Once positioned, the cursor can move freely in either direction through the entire transcript history. `--since` on cursor commands is a hint for where to start looking, not a filter. You can start at "about 2 days ago" and walk backward into last week.
 
-**Context:** `--context N` shows N turns before and after the anchor. The context window respects filters: if you filter to `--tools-only`, context shows only tool call turns within the window.
+**Anchoring:** You set a cursor position by timestamp (`--at TS`), approximate time (`--around 2d`), or semantic anchor (`--first`/`--last`/`--nth N` target). When `--around` is combined with anchors, it means "find the first/nth match starting from around this time."
 
-**Walking:** `tq walk` advances the cursor one turn at a time, printing each turn. `--from TIMESTAMP` sets the starting point. `--reverse` walks backward. `--limit N` stops after N turns.
+**Context:** `--context N` shows N turns before and after the anchor. The context window respects content filters: if you filter to `--tools-only`, context shows only tool call turns within the window.
+
+**Walking:** `tq walk` advances the cursor one turn at a time, printing each turn. `--from TIMESTAMP` or `--around DURATION` sets the starting point. `--reverse` walks backward. `--limit N` stops after N turns. Walking is not bounded by any time window.
 
 ## How tq Serves Doreen's Graders
 

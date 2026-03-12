@@ -23,7 +23,7 @@ Get the shape of recent work. No session IDs needed.
 tq stats
 
 # What happened in the last 2 hours?
-tq stats --since 2h
+tq stats --around 2h
 
 # What happened this week?
 tq stats --since 1w
@@ -44,7 +44,7 @@ tq find "parser refactor" --since 3d
 tq find --in-messages "fix the bug" --since 1w
 
 # See what the operator asked for recently
-tq messages --external-only --since 2h
+tq messages --external-only --around 2h
 ```
 
 ## Workflow: Navigating to Points of Interest
@@ -53,13 +53,13 @@ Find something specific, then look around it.
 
 ```bash
 # First error in the last 2 hours with context
-tq show --first error --context 5 --since 2h
+tq show --first error --context 5 --around 2h
 
 # Where did compaction happen?
 tq show --first compaction --context 10
 
 # First time Agent was launched today
-tq show --first "tool:Agent" --context 5 --since 1d
+tq show --first "tool:Agent" --context 5 --around 1d
 
 # Find a specific pattern
 tq show --first "pattern:TODO" --context 3
@@ -71,13 +71,13 @@ Step through turns to understand the flow.
 
 ```bash
 # Walk through last hour, tools only
-tq walk --since 1h --tools-only
+tq walk --around 1h --tools-only
 
 # Walk backward from now, last 20 turns
 tq walk --reverse --limit 20
 
 # Walk only external messages (operator + Claude responses, no tool noise)
-tq walk --external-only --since 2h
+tq walk --external-only --around 2h
 
 # Walk from a specific timestamp
 tq walk --from "2026-03-10T14:00:00"
@@ -107,7 +107,8 @@ tq agent-trace --since 3d --json
 ## Tips
 
 - Start with `tq stats` or `tq sessions` to orient
-- Default time window is 24h — use `--since` to widen or narrow
-- You never need a session ID — just use time windows
+- Batch commands default to 24h — use `--since` to widen or narrow
+- Cursor commands use `--around` to position — no time limit on navigation
+- You never need a session ID
 - `--external-only` is essential for seeing the "human conversation" without tool noise
 - Combine `tq show --first` with `tq walk --from` to jump to interesting points then step through
