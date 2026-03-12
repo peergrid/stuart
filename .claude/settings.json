@@ -86,18 +86,7 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "doreen/hooks/exploration-reset.sh",
-            "timeout": 3000
-          }
-        ]
-      }
-    ]
+    "UserPromptSubmit": []
   },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
