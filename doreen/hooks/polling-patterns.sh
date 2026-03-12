@@ -2,6 +2,7 @@
 # PreToolUse:Bash — Block sleep+check polling patterns and repeated identical commands.
 # Sleep detection is stateless (pattern match on the command).
 # Repeated command detection uses tq to scan recent Bash calls from the transcript.
+# jq is used only for parsing hook input JSON (the hook API), not for transcripts.
 set -euo pipefail
 
 source "$(dirname "$0")/lib.sh"
@@ -39,12 +40,8 @@ fi
 
 CMD_HASH=$(echo "$CMD" | md5sum | cut -d' ' -f1)
 
-# Get last 10 Bash tool calls from the transcript
-RECENT_CMDS=$("$TQ" tools --tool Bash --limit 10 --jsonl 2>/dev/null) || exit 0
-[ -z "$RECENT_CMDS" ] && exit 0
-
-# Count how many of the last 10 Bash commands match the current command hash
-REPEAT_COUNT=$(echo "$RECENT_CMDS" | jq -r '.input.command // ""' 2>/dev/null | while read -r line; do
+# Get last 10 Bash commands from the transcript via tq --field (no jq needed)
+REPEAT_COUNT=$("$TQ" tools --tool Bash --limit 10 --field input.command 2>/dev/null | while read -r line; do
     echo "$line" | md5sum | cut -d' ' -f1
 done | grep -c "^${CMD_HASH}$" 2>/dev/null || echo 0)
 
