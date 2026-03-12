@@ -6,7 +6,7 @@ Audit tool use patterns in transcripts to detect anti-patterns, violations of be
 
 ## When to Use
 
-- "Audit the tool usage in the last session"
+- "Audit the tool usage from today"
 - "Did Claude use Bash instead of dedicated tools?"
 - "Check for read-before-edit violations"
 - "Find all Bash calls that used grep"
@@ -19,17 +19,17 @@ Audit tool use patterns in transcripts to detect anti-patterns, violations of be
 Run the comprehensive tool use audit.
 
 ```bash
-# Human-readable audit report
-dq audit --latest
+# Audit last 24h (default)
+tq audit
+
+# Audit last 3 days
+tq audit --since 3d
 
 # JSON output for grader consumption
-dq audit --latest --json
+tq audit --json
 
-# Audit a specific session
-dq audit --project stuart --session 2ac9
-
-# Audit with subagent transcripts included
-dq audit --project stuart --session 2ac9 --subagents
+# Include subagent transcripts
+tq audit --subagents
 ```
 
 The audit checks:
@@ -45,72 +45,40 @@ Investigate specific tool patterns.
 
 ```bash
 # Find all Bash calls — the most common source of anti-patterns
-dq tools --latest --tool Bash
+tq tools --tool Bash
 
 # Find Bash calls that used grep (should use Grep tool)
-dq tools --latest --tool Bash --input-contains "grep "
+tq tools --tool Bash --input-contains "grep "
 
 # Find Bash calls that used cat (should use Read tool)
-dq tools --latest --tool Bash --input-contains "\\bcat\\b"
+tq tools --tool Bash --input-contains "\\bcat\\b"
 
 # Find Bash calls that used find (should use Glob tool)
-dq tools --latest --tool Bash --input-contains "\\bfind\\b"
-
-# Find Bash calls that used sed/awk (should use Edit tool)
-dq tools --latest --tool Bash --input-contains "\\b(sed|awk)\\b"
+tq tools --tool Bash --input-contains "\\bfind\\b"
 
 # Find all calls with dangerouslyDisableSandbox
-dq tools --latest --audit "input.dangerouslyDisableSandbox=true"
+tq tools --audit "input.dangerouslyDisableSandbox=true"
 
-# Find all Bash calls that used echo to write files (should use Write)
-dq tools --latest --tool Bash --input-contains "echo.*>\\s"
-```
-
-## Workflow: Read-Edit Chain Analysis
-
-Verify proper read-before-edit patterns.
-
-```bash
-# Show all Edit and Write calls with context to verify preceding Reads
-dq tools --latest --tool Edit --with-results
-dq tools --latest --tool Write --with-results
-
-# The audit command does this automatically, but for manual inspection:
-# Show Edit calls, then check what came before each one
-dq show --latest --first "tool:Edit" --context 3
-```
-
-## Workflow: Parallelism Check
-
-Assess whether Claude used parallel tool calls effectively.
-
-```bash
-# The stats output shows tool call counts per turn
-dq stats --latest
-
-# The audit command calculates parallelism ratio
-dq audit --latest --json | jq '.parallelism_ratio'
-
-# To manually inspect: walk through and look for sequential single-tool turns
-dq walk --latest --tools-only
+# Widen the time window
+tq tools --tool Bash --input-contains "\\b(sed|awk)\\b" --since 1w
 ```
 
 ## Workflow: Anti-Pattern Scanning
 
-Find specific known anti-patterns across sessions.
+Find specific known anti-patterns.
 
 ```bash
 # Sleep-and-poll patterns
-dq tools --project stuart --tool Bash --input-contains "sleep"
+tq tools --tool Bash --input-contains "sleep" --since 3d
 
 # HEREDOC abuse
-dq tools --project stuart --tool Bash --input-contains "<<.*EOF"
+tq tools --tool Bash --input-contains "<<.*EOF" --since 3d
 
 # Temporary script creation
-dq tools --project stuart --tool Write --input-contains "/tmp/"
+tq tools --tool Write --input-contains "/tmp/" --since 3d
 
-# Interactive flag usage (git rebase -i, git add -i)
-dq tools --project stuart --tool Bash --input-contains "git.*(rebase|add).*-i\\b"
+# Interactive flag usage
+tq tools --tool Bash --input-contains "git.*(rebase|add).*-i\\b" --since 1w
 ```
 
 ## Interpreting Results
@@ -138,7 +106,7 @@ dq tools --project stuart --tool Bash --input-contains "git.*(rebase|add).*-i\\b
 
 ### Contextualizing Findings
 
-Not every violation is equal. When reviewing audit results:
-- Check if a Bash call had a legitimate reason (e.g., piped commands that cannot be expressed with dedicated tools)
+Not every violation is equal:
+- Check if a Bash call had a legitimate reason (e.g., piped commands)
 - Redundant reads after compaction are expected, not violations
 - Low parallelism in inherently sequential work is acceptable

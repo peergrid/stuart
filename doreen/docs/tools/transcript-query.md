@@ -1,104 +1,120 @@
-# dq — Doreen Query: Transcript Analysis Tool
+# tq — Transcript Query: Analysis Tool for Claude Code Sessions
 
 ## Purpose
 
-`dq` is a Go CLI tool for querying, navigating, and analyzing Claude Code transcripts. It treats transcript JSONL files as a queryable database with cursor-based navigation, composable filters, and built-in analysis modes that directly serve doreen's graders.
+`tq` is a Go CLI tool for querying, navigating, and analyzing Claude Code transcripts. It treats transcript JSONL files as a queryable database with cursor-based navigation, composable filters, and built-in analysis modes that directly serve doreen's graders.
 
 It replaces ad-hoc transcript parsing with a single, fast, comprehensive tool that both humans and Claude can use.
 
 ## Design Philosophy
 
-1. **Cursor, not dump.** The primary interaction model is: find a point of interest, then navigate around it. Not "dump everything and grep."
-2. **Composable filters.** Every filter can combine with every other filter. Filters narrow; they never change the output format.
-3. **Three audiences.** Human terminal users get readable tables. Claude gets JSON. Scripts get line-oriented output. One tool, three modes.
-4. **Grader-native.** Built-in analysis commands produce exactly the data doreen's graders need. No glue code required.
-5. **Fast.** Go, streaming where possible, no unnecessary parsing. A 100MB transcript should respond in under a second for targeted queries.
+1. **Time, not sessions.** You never need to know a session ID. Queries operate on a time window across all sessions: "last 2 hours", "last 3 days", "today". Sessions are an implementation detail.
+2. **CWD, not flags.** Project is detected from your working directory automatically. You're already in the project — tq knows which one.
+3. **Cursor, not dump.** Find a point of interest, then navigate around it. Not "dump everything and grep."
+4. **Composable filters.** Every filter can combine with every other filter. Filters narrow; they never change the output format.
+5. **Three audiences.** Human terminal users get readable tables. Claude gets JSON. Scripts get line-oriented output. One tool, three modes.
+6. **Grader-native.** Built-in analysis commands produce exactly the data doreen's graders need. No glue code required.
+7. **Fast.** Go, streaming where possible, no unnecessary parsing. A 100MB transcript should respond in under a second for targeted queries.
 
 ## Installation
 
 ```
-cd doreen/tools/dq
-go build -o dq .
+cd doreen/tools/tq
+go build -o tq .
 # Move to PATH or symlink
 ```
 
 ## CLI Structure
 
-`dq` uses subcommands. The general form is:
+`tq` uses subcommands. The general form is:
 
 ```
-dq <command> [flags] [session-specifier]
+tq <command> [flags]
 ```
 
-### Session Specifiers
+### Scope Model
 
-Every command that operates on transcript data accepts a session specifier:
+All queries operate on a **time window** across **all sessions** for the current project.
 
-| Specifier | Example | Description |
-|-----------|---------|-------------|
-| File path | `/path/to/session.jsonl` | Direct file path |
-| `--project NAME` | `--project stuart` | All sessions in a project |
-| `--session UUID` | `--session 2ac9` | Session by UUID prefix (requires --project) |
-| `--latest` | `--latest` | Most recent session in current project |
-| `--all` | `--all` | All projects |
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--since DURATION` | `24h` | Start of window: `30m`, `2h`, `12h`, `1d`, `3d`, `1w`, or ISO date |
+| `--until TIME` | now | End of window |
+| `--project NAME` | from CWD | Override project detection |
+| `--session UUID` | (all) | Filter to one session (rarely needed) |
+| `--all` | false | All projects |
+| `--subagents` | false | Include subagent transcripts |
 
-The `--subagents` flag includes subagent transcripts alongside the root session.
+**Project detection:** tq maps the current working directory to a Claude project by converting the absolute path to a slug (`/home/user/stuart` → `-home-user-stuart`) and looking it up in `~/.claude/projects/`. It walks up parent directories if the exact CWD doesn't match.
+
+**Time window:** All session files whose modification time falls within the window are included. Records are merged chronologically across sessions, with a session indicator column where relevant. Default window is 24 hours.
+
+**Examples:**
+```
+tq errors                       # Errors in the last 24h, all sessions
+tq errors --since 2d            # Errors in the last 2 days
+tq tools --since 1h             # Tool calls in the last hour
+tq stats                        # Stats for last 24h
+tq stats --since 1w             # Stats for the whole week
+tq audit --since 3d             # Tool use audit, last 3 days
+tq show --first error --since 2h  # First error in last 2 hours
+```
 
 ## Commands
 
 ### Discovery Commands
 
-#### `dq sessions`
+#### `tq sessions`
 
-List sessions with metadata. The entry point for exploration.
+List sessions in the time window with metadata. Useful for context, not required for querying.
 
 ```
-dq sessions --project stuart
-dq sessions --project stuart --limit 5
-dq sessions --project stuart --json
+tq sessions                     # Sessions in last 24h
+tq sessions --since 1w          # Sessions in the last week
+tq sessions --since 1w --json
 ```
 
 Output columns: SESSION_ID, SIZE, RECORDS, MODEL, AGENTS, START, DURATION.
 
-#### `dq agents`
+#### `tq agents`
 
-List subagents for a session.
+List subagents across sessions in the time window.
 
 ```
-dq agents --project stuart --session 2ac9
-dq agents --project stuart --latest
-dq agents --project stuart --latest --json
+tq agents                       # All agents, last 24h
+tq agents --since 2d            # Agents from last 2 days
+tq agents --since 2d --json
 ```
 
-Output columns: AGENT_ID, NAME, MODEL, SIZE, DURATION, TOOLS, LAUNCH_PROMPT.
+Output columns: AGENT_ID, SESSION, NAME, MODEL, SIZE, DURATION, TOOLS, LAUNCH_PROMPT.
 
-#### `dq find`
+#### `tq find`
 
 Search for sessions or agents by content.
 
 ```
-dq find --project stuart "observer"           # Find agents by name/prompt
-dq find --project stuart --in-messages "fix the bug"  # Find sessions containing text
+tq find "observer"              # Find agents by name/prompt
+tq find --in-messages "fix the bug" --since 3d  # Find sessions with text
 ```
 
 ### Navigation Commands
 
-#### `dq show`
+#### `tq show`
 
 Show records around a point of interest. This is the core navigation command.
 
 ```
-# Show turn 42 with 3 turns of context before and after
-dq show --project stuart --session 2ac9 --turn 42 --context 3
+# Show the first error with 5 turns of context
+tq show --first error --context 5
 
-# Show the record at a specific timestamp
-dq show --session 2ac9 --project stuart --at "2026-03-10T14:22:00" --context 5
+# Show the first compaction event
+tq show --first compaction --context 10
 
-# Show the first compaction event with surrounding context
-dq show --project stuart --session 2ac9 --first compaction --context 10
+# Show a specific timestamp with context
+tq show --at "2026-03-10T14:22:00" --context 5
 
-# Show the 3rd error with context
-dq show --project stuart --session 2ac9 --nth 3 error --context 5
+# Show the 3rd error in last 2 days
+tq show --nth 3 error --context 5 --since 2d
 ```
 
 **Anchor points** (what `--first`, `--last`, `--nth N` can target):
@@ -109,30 +125,27 @@ dq show --project stuart --session 2ac9 --nth 3 error --context 5
 - `tool:NAME` — first/last/nth use of a specific tool (e.g., `tool:Bash`)
 - `pattern:REGEX` — first/last/nth match of a regex in message text
 
-#### `dq walk`
+#### `tq walk`
 
-Step through a transcript turn by turn with optional filters. Interactive-style output for understanding flow.
+Step through turns with optional filters. Interactive-style output for understanding flow.
 
 ```
-# Walk through all turns, showing role and summary
-dq walk --project stuart --session 2ac9
+# Walk through the last hour, tools only
+tq walk --since 1h --tools-only
 
-# Walk through only tool calls
-dq walk --project stuart --session 2ac9 --tools-only
+# Walk through only operator messages and responses
+tq walk --external-only
 
-# Walk through only operator messages and Claude's direct responses
-dq walk --project stuart --session 2ac9 --external-only
+# Walk backward from now, last 20 turns
+tq walk --reverse --limit 20
 
-# Walk starting from turn 50
-dq walk --project stuart --session 2ac9 --from 50
-
-# Walk backward from the end
-dq walk --project stuart --session 2ac9 --reverse --limit 20
+# Walk from a specific timestamp
+tq walk --from "2026-03-10T14:00:00"
 ```
 
 Output per turn:
 ```
---- Turn 42 | assistant | 2026-03-10 14:22:05 | 892 out tokens ---
+--- Turn 42 | session:2ac9 | assistant | 2026-03-10 14:22:05 | 892 out tokens ---
 [Text] I'll read the file first to understand the current structure.
 [Tool: Read] /home/user/project/main.go
 [Tool: Grep] pattern="TODO" path=/home/user/project/
@@ -140,124 +153,94 @@ Output per turn:
 
 ### Query Commands
 
-#### `dq messages`
+#### `tq messages`
 
 Extract messages with filtering.
 
 ```
-# All operator messages (human input only)
-dq messages --latest --external-only
-
-# All assistant text (no tool calls)
-dq messages --latest --role assistant
-
-# Messages containing a pattern
-dq messages --latest --contains "error|fail"
-
-# Messages in a time window
-dq messages --latest --since "2026-03-10T14:00:00" --until "2026-03-10T15:00:00"
+tq messages --external-only             # Operator messages, last 24h
+tq messages --role assistant --since 1h # Assistant text, last hour
+tq messages --contains "error|fail"     # Pattern match
 ```
 
-#### `dq tools`
+#### `tq tools`
 
 Extract tool calls with filtering.
 
 ```
-# All tool calls in latest session
-dq tools --latest
-
-# Only Bash calls
-dq tools --latest --tool Bash
-
-# Bash calls that used grep (anti-pattern detection)
-dq tools --latest --tool Bash --input-contains "grep"
-
-# Tool calls where input matches a field pattern
-dq tools --latest --audit "input.dangerouslyDisableSandbox=true"
-
-# Tool calls with their results
-dq tools --latest --with-results
+tq tools                                # All tool calls, last 24h
+tq tools --tool Bash                    # Only Bash calls
+tq tools --tool Bash --input-contains "grep"  # Anti-pattern detection
+tq tools --audit "input.dangerouslyDisableSandbox=true"
+tq tools --with-results                 # Include tool output
 ```
 
-#### `dq raw`
+#### `tq raw`
 
 Dump raw JSONL records, optionally filtered. For piping into jq or other tools.
 
 ```
-# All records as JSONL
-dq raw --latest
-
-# Only assistant records as JSONL
-dq raw --latest --type assistant
-
-# Pipe to jq for custom analysis
-dq raw --latest --type assistant | jq '.message.usage.output_tokens'
+tq raw                                  # All records, last 24h
+tq raw --type assistant                 # Only assistant records
+tq raw --type assistant | jq '.message.usage.output_tokens'
 ```
 
 ### Analysis Commands
 
-#### `dq stats`
+#### `tq stats`
 
-Session summary statistics.
+Summary statistics across the time window.
 
 ```
-dq stats --latest
-dq stats --project stuart --session 2ac9
-dq stats --project stuart  # Aggregate across all sessions
+tq stats                        # Stats for last 24h
+tq stats --since 3d             # Stats for last 3 days
+tq stats --json
 ```
 
 Output:
 ```
-Session:        2ac9f4e1-...
-Duration:       1h 23m 45s
-Records:        847
-Model:          claude-sonnet-4-20250514
+Period:         last 24h (3 sessions)
+Duration:       4h 12m total active time
+Records:        2,847
 
-Messages:       user: 124, assistant: 318, system: 5
-Tool calls:     401
-  Read:         89
-  Edit:         45
-  Bash:         67
-  Grep:         34
+Messages:       user: 324, assistant: 918, system: 15
+Tool calls:     1,201
+  Read:         289
+  Edit:         145
+  Bash:         267
+  Grep:         134
   ...
 
 Tokens:
-  Input:        1,234,567
-  Output:       89,012
-  Cache read:   987,654
+  Input:        3,234,567
+  Output:       189,012
+  Cache read:   2,987,654
 
-Compactions:    2
-Errors:         7
-Subagents:      3
+Compactions:    5
+Errors:         17
+Subagents:      12
 ```
 
-#### `dq tokens`
+#### `tq tokens`
 
 Token consumption analysis. Directly serves the token-cost-metrics grader.
 
 ```
-# Turn-by-turn token timeline
-dq tokens --latest
-
-# Token summary only
-dq tokens --latest --summary
-
-# JSON output for grader consumption
-dq tokens --latest --json
+tq tokens                       # Turn-by-turn timeline, last 24h
+tq tokens --since 1h --summary  # Summary only
+tq tokens --json                # JSON for grader
 ```
 
-Output columns: TURN, TIME, CONTEXT, INPUT, OUTPUT, CACHE_READ, CUMULATIVE_INPUT, TOOLS.
+Output columns: TURN, SESSION, TIME, CONTEXT, INPUT, OUTPUT, CACHE_READ, CUMULATIVE_INPUT, TOOLS.
 
-Summary includes: total tokens, max single-turn context, context utilization curve data points, compaction count, tokens-per-turn average.
+#### `tq compactions`
 
-#### `dq compactions`
-
-Detect and analyze compaction events. Shows what happened before and after each compaction.
+Detect and analyze compaction events.
 
 ```
-dq compactions --latest
-dq compactions --latest --with-context 5   # Show 5 turns around each compaction
-dq compactions --latest --json
+tq compactions                          # Compactions in last 24h
+tq compactions --since 1w --with-context 5
+tq compactions --json
 ```
 
 Detection methods (ordered by reliability):
@@ -265,26 +248,26 @@ Detection methods (ordered by reliability):
 2. `POST-COMPACTION RECOVERY` markers (hook-injected)
 3. Total context token drops >50% from >50K baseline (heuristic)
 
-#### `dq errors`
+#### `tq errors`
 
 Extract all errors: tool errors, permission denials, hook failures, runtime errors.
 
 ```
-dq errors --latest
-dq errors --latest --type tool_error       # Only tool errors
-dq errors --latest --with-context 3        # Show surrounding turns
-dq errors --latest --json
+tq errors                               # Errors in last 24h
+tq errors --since 3d --type tool_error  # Only tool errors
+tq errors --with-context 3             # Show surrounding turns
+tq errors --json
 ```
 
 Error types: `tool_error`, `hook_error`, `permission_denied`, `runtime_error`.
 
-#### `dq audit`
+#### `tq audit`
 
 Tool use audit analysis. Directly serves the tool-use-audit grader.
 
 ```
-dq audit --latest
-dq audit --latest --json
+tq audit                        # Audit last 24h
+tq audit --since 3d --json
 ```
 
 Checks performed:
@@ -296,55 +279,56 @@ Checks performed:
 
 Output:
 ```
-Tool Use Audit — Session 2ac9
+Tool Use Audit — last 24h (3 sessions)
 
 Violations: 12 / 401 tool calls (3.0% violation rate)
 
 Dedicated tool preference:
-  [Turn 15] Bash: grep -r "TODO" . → should use Grep tool
-  [Turn 23] Bash: cat main.go → should use Read tool
-  [Turn 67] Bash: find . -name "*.go" → should use Glob tool
+  [session:2ac9 Turn 15] Bash: grep -r "TODO" . → should use Grep tool
+  [session:2ac9 Turn 23] Bash: cat main.go → should use Read tool
+  [session:f8b1 Turn 67] Bash: find . -name "*.go" → should use Glob tool
 
 Read-before-edit:
-  [Turn 31] Edit: main.go — no preceding Read
+  [session:2ac9 Turn 31] Edit: main.go — no preceding Read
 
 Redundant reads:
-  [Turn 44, 89] Read: config.yaml — read twice, no edit between
+  [session:f8b1 Turn 44, 89] Read: config.yaml — read twice, no edit between
 
 Parallelism: 23 / 67 multi-tool turns used parallel calls (34.3%)
 
 Score: 0.970 (12 violations / 401 calls)
 ```
 
-#### `dq critique-data`
+#### `tq critique-data`
 
-Extract the data needed for the transcript-critique LLM grader. Produces a structured summary optimized for LLM consumption.
+Extract the data needed for the transcript-critique LLM grader.
 
 ```
-dq critique-data --latest --json
+tq critique-data --json
+tq critique-data --since 2d --json
 ```
 
 Output includes:
-- Original task/prompt (first external user message)
+- Original task/prompt (first external user message per session)
 - Decision points (turns where Claude chose an approach)
 - Error recovery sequences (error + subsequent turns)
 - Communication quality signals (response lengths, verbosity indicators)
 - Completion claims (turns where Claude says "done"/"complete"/"finished") with what followed
 - Context management signals (compactions, repeated reads, lost information indicators)
 
-#### `dq agent-trace`
+#### `tq agent-trace`
 
 Trace subagent lifecycle: launch, execution, and return.
 
 ```
-dq agent-trace --latest
-dq agent-trace --latest --agent "observer"
-dq agent-trace --latest --json
+tq agent-trace                          # All agents, last 24h
+tq agent-trace --agent "observer"       # Filter by agent name
+tq agent-trace --since 3d --json
 ```
 
 Output per agent:
 ```
-Agent: observer (2ac9-sub-001)
+Agent: observer (session:2ac9, sub-001)
   Launched: Turn 45, 14:22:05
   Prompt: "Investigate the test failures in..."  (142 tokens)
   Duration: 3m 12s
@@ -375,8 +359,6 @@ These flags work with any command that processes records:
 | `--tool NAME` | Filter for records containing tool_use of NAME |
 | `--contains PATTERN` | Regex match against message text content |
 | `--audit FIELD=REGEX` | Match any JSON field (dot-notation) against regex |
-| `--since ISO_DATE` | Records after this timestamp |
-| `--until ISO_DATE` | Records before this timestamp |
 | `--external-only` | Only genuine operator messages (skip meta, system, tool results) |
 | `--no-sidechain` | Skip sidechain records |
 | `--limit N` | Max records to output |
@@ -384,43 +366,43 @@ These flags work with any command that processes records:
 
 ### Cursor Model
 
-The cursor model is how `dq show` and `dq walk` navigate transcripts. Internally, every record is assigned a sequential **turn number** (1-indexed) within its session. Turn numbers provide stable references for navigation.
+The cursor model is how `tq show` and `tq walk` navigate transcripts. Records are merged chronologically across sessions and assigned sequential **turn numbers** (1-indexed within the merged timeline). Turn numbers provide stable references for navigation.
 
-**Anchoring:** You set a cursor position by turn number (`--turn N`), timestamp (`--at TS`), or semantic anchor (`--first`/`--last`/`--nth N` target).
+**Anchoring:** You set a cursor position by timestamp (`--at TS`) or semantic anchor (`--first`/`--last`/`--nth N` target).
 
 **Context:** `--context N` shows N turns before and after the anchor. The context window respects filters: if you filter to `--tools-only`, context shows only tool call turns within the window.
 
-**Walking:** `dq walk` advances the cursor one turn at a time, printing each turn. `--from N` sets the starting turn. `--reverse` walks backward. `--limit N` stops after N turns.
+**Walking:** `tq walk` advances the cursor one turn at a time, printing each turn. `--from TIMESTAMP` sets the starting point. `--reverse` walks backward. `--limit N` stops after N turns.
 
-## How dq Serves Doreen's Graders
+## How tq Serves Doreen's Graders
 
 ### tool-use-audit grader
 
-Primary command: `dq audit --latest --json`
+Primary command: `tq audit --json`
 
-The audit command runs all tool-use checks and produces structured violations with turn references. The grader reads the JSON output directly. No additional processing needed.
+The audit command runs all tool-use checks and produces structured violations with turn references. The grader reads the JSON output directly.
 
 ### transcript-critique grader
 
-Primary command: `dq critique-data --latest --json`
+Primary command: `tq critique-data --json`
 
 Extracts the structured summary an LLM grader needs: original prompt, decision points, error recovery, completion claims. The grader feeds this to a separate Claude instance as context for the critique.
 
 ### token-cost-metrics grader
 
-Primary command: `dq tokens --latest --json`
+Primary command: `tq tokens --json`
 
-Provides turn-by-turn token data, compaction count, context utilization curve, and aggregate metrics. The grader computes derived metrics (tokens per line of diff, efficiency scores) from this data.
+Provides turn-by-turn token data, compaction count, context utilization curve, and aggregate metrics.
 
 ### regression-comparison grader
 
-Does not directly use dq. Operates on stored grader outputs. However, `dq stats --json` provides the raw session metrics that get stored for comparison.
+Does not directly use tq. Operates on stored grader outputs. However, `tq stats --json` provides the raw session metrics that get stored for comparison.
 
 ### work-product-critique grader
 
-Primary command: `dq tools --latest --tool Edit --json` and `dq tools --latest --tool Write --json`
+Primary command: `tq tools --tool Edit --json` and `tq tools --tool Write --json`
 
-Extracts the set of file modifications for work product analysis. Combined with `dq messages --latest --external-only --limit 1 --json` for the original prompt.
+Extracts the set of file modifications for work product analysis. Combined with `tq messages --external-only --limit 1 --json` for the original prompt.
 
 ## JSONL Record Format
 
@@ -431,34 +413,33 @@ See `doreen/docs/tools/jsonl-format.md` for the complete JSONL format reference.
 ### Package Structure
 
 ```
-doreen/tools/dq/
-  main.go              # Entry point, cobra command tree
+doreen/tools/tq/
+  main.go              # Entry point
   go.mod
-  go.sum
   cmd/
     root.go            # Root command, global flags
-    sessions.go        # dq sessions
-    agents.go          # dq agents
-    find.go            # dq find
-    show.go            # dq show
-    walk.go            # dq walk
-    messages.go        # dq messages
-    tools.go           # dq tools
-    raw.go             # dq raw
-    stats.go           # dq stats
-    tokens.go          # dq tokens
-    compactions.go     # dq compactions
-    errors.go          # dq errors
-    audit.go           # dq audit
-    critique_data.go   # dq critique-data
-    agent_trace.go     # dq agent-trace
+    sessions.go        # tq sessions
+    agents.go          # tq agents
+    find.go            # tq find
+    show.go            # tq show
+    walk.go            # tq walk
+    messages.go        # tq messages
+    tools.go           # tq tools
+    raw.go             # tq raw
+    stats.go           # tq stats
+    tokens.go          # tq tokens
+    compactions.go     # tq compactions
+    errors.go          # tq errors
+    audit.go           # tq audit
+    critique_data.go   # tq critique-data
+    agent_trace.go     # tq agent-trace
   internal/
     transcript/
       record.go        # Record types and parsing
       loader.go        # JSONL file loading (streaming + list modes)
       filter.go        # Filter chain implementation
       cursor.go        # Cursor/navigation model
-      session.go       # Session discovery and resolution
+      session.go       # Project detection, time-windowed session discovery
     format/
       human.go         # Human-readable output formatting
       json.go          # JSON output
@@ -474,10 +455,11 @@ doreen/tools/dq/
 
 ### Performance
 
-- Stream records by default; only load full list when random access is needed (compaction detection with heuristic, cursor context)
+- Stream records by default; only load full list when random access is needed
 - Use buffered I/O for all file reads
 - Parse only the fields needed for the current operation (lazy parsing)
 - Session metadata can be extracted from first/last lines without full file read
+- Time-window filtering at the file level (mtime check) before opening files
 
 ### Error Handling
 

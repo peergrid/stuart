@@ -7,44 +7,44 @@ Discover sessions, get overviews, and navigate through transcript content. This 
 ## When to Use
 
 - "Show me recent sessions"
-- "What happened in the last session?"
-- "Find the session where I worked on X"
+- "What happened in the last hour?"
+- "Find where I worked on X"
 - "Walk me through what Claude did"
-- "Show me what happened around turn N"
-- "What agents were launched?"
+- "Show me what happened around that error"
+- "What agents were launched today?"
 - Any exploratory question about transcript content
 
-## Workflow: Session Discovery
+## Workflow: Quick Overview
 
-Start by finding what's available.
+Get the shape of recent work. No session IDs needed.
 
 ```bash
-# List recent sessions for a project
-dq sessions --project stuart --limit 10
+# Stats for the last 24h (default)
+tq stats
 
-# Find sessions containing specific work
-dq find --project stuart --in-messages "parser refactor"
+# What happened in the last 2 hours?
+tq stats --since 2h
 
-# Get overview of the latest session
-dq stats --latest
+# What happened this week?
+tq stats --since 1w
+
+# List recent sessions
+tq sessions --since 3d
 ```
 
-## Workflow: Session Overview
+## Workflow: Finding Things
 
-Get the shape of a session before diving in.
+Search across all sessions in a time window.
 
 ```bash
-# Quick stats
-dq stats --project stuart --session 2ac9
+# Find sessions/agents that mention specific work
+tq find "parser refactor" --since 3d
 
-# See all agents that were launched
-dq agents --project stuart --session 2ac9
+# Find sessions with specific text
+tq find --in-messages "fix the bug" --since 1w
 
-# Sample every 10th turn for a quick skim
-dq walk --project stuart --session 2ac9 --limit 20
-
-# See only operator messages (what the human asked for)
-dq messages --project stuart --session 2ac9 --external-only
+# See what the operator asked for recently
+tq messages --external-only --since 2h
 ```
 
 ## Workflow: Navigating to Points of Interest
@@ -52,35 +52,35 @@ dq messages --project stuart --session 2ac9 --external-only
 Find something specific, then look around it.
 
 ```bash
-# Find and show the first error with context
-dq show --project stuart --session 2ac9 --first error --context 5
+# First error in the last 2 hours with context
+tq show --first error --context 5 --since 2h
 
-# Find where a compaction happened
-dq show --project stuart --session 2ac9 --first compaction --context 10
+# Where did compaction happen?
+tq show --first compaction --context 10
 
-# Jump to a specific turn
-dq show --project stuart --session 2ac9 --turn 42 --context 3
+# First time Agent was launched today
+tq show --first "tool:Agent" --context 5 --since 1d
 
-# Find where Claude first used a specific tool
-dq show --project stuart --session 2ac9 --first "tool:Agent" --context 5
+# Find a specific pattern
+tq show --first "pattern:TODO" --context 3
 ```
 
-## Workflow: Walking Through a Session
+## Workflow: Walking Through History
 
 Step through turns to understand the flow.
 
 ```bash
-# Walk from the beginning, tool calls only
-dq walk --project stuart --session 2ac9 --tools-only --limit 30
+# Walk through last hour, tools only
+tq walk --since 1h --tools-only
 
-# Walk backward from the end to see how it finished
-dq walk --project stuart --session 2ac9 --reverse --limit 10
-
-# Walk from a specific point forward
-dq walk --project stuart --session 2ac9 --from 50 --limit 20
+# Walk backward from now, last 20 turns
+tq walk --reverse --limit 20
 
 # Walk only external messages (operator + Claude responses, no tool noise)
-dq walk --project stuart --session 2ac9 --external-only
+tq walk --external-only --since 2h
+
+# Walk from a specific timestamp
+tq walk --from "2026-03-10T14:00:00"
 ```
 
 ## Workflow: Investigating Agents
@@ -88,14 +88,14 @@ dq walk --project stuart --session 2ac9 --external-only
 Trace what subagents did.
 
 ```bash
-# List all agents with their outcomes
-dq agent-trace --project stuart --latest
+# All agents launched today
+tq agent-trace --since 1d
 
-# Investigate a specific agent
-dq agent-trace --project stuart --latest --agent "observer"
+# Find a specific agent by name
+tq agent-trace --agent "observer"
 
-# Walk through an agent's transcript directly
-dq walk /path/to/subagent.jsonl
+# Agents from the last 3 days
+tq agent-trace --since 3d --json
 ```
 
 ## Output Modes
@@ -106,8 +106,8 @@ dq walk /path/to/subagent.jsonl
 
 ## Tips
 
-- Always start with `dq sessions` or `dq stats` to orient
-- Use `--limit` liberally to avoid overwhelming output
-- The `--external-only` flag is essential for seeing the "human conversation" without tool noise
-- Combine `dq show --first` with `dq walk --from` to jump to interesting points then step through
-- For deep dives, use `dq raw` piped to `jq` for custom field extraction
+- Start with `tq stats` or `tq sessions` to orient
+- Default time window is 24h — use `--since` to widen or narrow
+- You never need a session ID — just use time windows
+- `--external-only` is essential for seeing the "human conversation" without tool noise
+- Combine `tq show --first` with `tq walk --from` to jump to interesting points then step through

@@ -16,9 +16,9 @@ Doreen provides the hooks, tests, grading, and monitoring that run across all pr
 
 All doreen tools MUST be written in Go or shell scripts. No Python. No exceptions. This applies to CLI tools, analysis utilities, graders, and anything that ships as an executable. Go is the primary language; shell scripts are acceptable for thin wrappers or glue.
 
-### Transcript Query Tool (dq)
+### Transcript Query Tool (tq)
 
-The primary tool for transcript analysis. Spec: `doreen/docs/tools/transcript-query.md`. Source: `doreen/tools/dq/`.
+The primary tool for transcript analysis. Spec: `doreen/docs/tools/transcript-query.md`. Source: `doreen/tools/tq/`.
 
 Skill specs for Claude's use:
 - `doreen/docs/tools/skills/transcript-explore.md` — session discovery and navigation
